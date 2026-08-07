@@ -1,43 +1,139 @@
 import { Head, Link, router } from '@inertiajs/react';
 import {
-    ChevronLeft,
-    ChevronRight,
+    ArrowDown,
+    ArrowUp,
+    GripVertical,
+    LoaderCircle,
     Pencil,
     Plus,
     Tags,
     Trash2,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState } from 'react';
+import type { DragEvent } from 'react';
 import {
     destroy as destroyCategory,
     edit as editCategory,
     create as newCategory,
+    reorder as reorderCategories,
 } from '@/actions/App/Http/Controllers/CategoryController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { index as categoriesIndex } from '@/routes/categories';
-import type { CategoryWithProductCount, PaginatedData } from '@/types';
+import type { CategoryWithProductCount } from '@/types';
 
 type CategoriesIndexProps = {
-    categories: PaginatedData<CategoryWithProductCount>;
+    categories: CategoryWithProductCount[];
 };
 
-function getVisiblePages(currentPage: number, lastPage: number): number[] {
-    const start = Math.max(1, currentPage - 2);
-    const end = Math.min(lastPage, currentPage + 2);
+type DropPlacement = 'before' | 'after';
 
-    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-}
+type DropTarget = {
+    id: number;
+    placement: DropPlacement;
+};
 
 function formatProductsCount(count: number): string {
     return `${count} product${count === 1 ? '' : 's'}`;
 }
 
-export default function CategoriesIndex({ categories }: CategoriesIndexProps) {
-    const visiblePages = getVisiblePages(
-        categories.current_page,
-        categories.last_page,
+function categoryIds(categories: CategoryWithProductCount[]): number[] {
+    return categories.map((category) => category.id);
+}
+
+function hasSameOrder(
+    currentCategories: CategoryWithProductCount[],
+    nextCategories: CategoryWithProductCount[],
+): boolean {
+    return (
+        categoryIds(currentCategories).join(',') ===
+        categoryIds(nextCategories).join(',')
     );
+}
+
+function moveCategory(
+    categories: CategoryWithProductCount[],
+    draggedCategoryId: number,
+    targetCategoryId: number,
+    placement: DropPlacement,
+): CategoryWithProductCount[] {
+    if (draggedCategoryId === targetCategoryId) {
+        return categories;
+    }
+
+    const draggedCategory = categories.find(
+        (category) => category.id === draggedCategoryId,
+    );
+
+    if (!draggedCategory) {
+        return categories;
+    }
+
+    const remainingCategories = categories.filter(
+        (category) => category.id !== draggedCategoryId,
+    );
+    const targetIndex = remainingCategories.findIndex(
+        (category) => category.id === targetCategoryId,
+    );
+
+    if (targetIndex === -1) {
+        return categories;
+    }
+
+    const insertIndex = placement === 'after' ? targetIndex + 1 : targetIndex;
+    const nextCategories = [...remainingCategories];
+
+    nextCategories.splice(insertIndex, 0, draggedCategory);
+
+    return nextCategories;
+}
+
+export default function CategoriesIndex({ categories }: CategoriesIndexProps) {
+    const [localCategoryIds, setLocalCategoryIds] = useState(() =>
+        categoryIds(categories),
+    );
+    const [draggedCategoryId, setDraggedCategoryId] = useState<number | null>(
+        null,
+    );
+    const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+    const [isSavingOrder, setIsSavingOrder] = useState(false);
+
+    const categoriesById = new Map(
+        categories.map((category) => [category.id, category]),
+    );
+    const hasValidLocalOrder =
+        localCategoryIds.length === categories.length &&
+        localCategoryIds.every((categoryId) => categoriesById.has(categoryId));
+    const orderedCategories = hasValidLocalOrder
+        ? localCategoryIds.map(
+              (categoryId) =>
+                  categoriesById.get(categoryId) as CategoryWithProductCount,
+          )
+        : categories;
+
+    function saveCategoryOrder(
+        nextCategories: CategoryWithProductCount[],
+    ): void {
+        if (hasSameOrder(orderedCategories, nextCategories)) {
+            return;
+        }
+
+        setLocalCategoryIds(categoryIds(nextCategories));
+        setIsSavingOrder(true);
+
+        router.put(
+            reorderCategories(),
+            {
+                categories: categoryIds(nextCategories),
+            },
+            {
+                preserveScroll: true,
+                onError: () => setLocalCategoryIds(categoryIds(categories)),
+                onFinish: () => setIsSavingOrder(false),
+            },
+        );
+    }
 
     function deleteCategory(category: CategoryWithProductCount): void {
         if (category.products_count > 0) {
@@ -57,18 +153,109 @@ export default function CategoriesIndex({ categories }: CategoriesIndexProps) {
         });
     }
 
+    function startDragging(
+        event: DragEvent<HTMLButtonElement>,
+        categoryId: number,
+    ): void {
+        if (isSavingOrder) {
+            event.preventDefault();
+
+            return;
+        }
+
+        setDraggedCategoryId(categoryId);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(categoryId));
+    }
+
+    function markDropTarget(
+        event: DragEvent<HTMLLIElement>,
+        categoryId: number,
+    ): void {
+        if (draggedCategoryId === null || draggedCategoryId === categoryId) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const placement =
+            event.clientY > bounds.top + bounds.height / 2 ? 'after' : 'before';
+
+        event.dataTransfer.dropEffect = 'move';
+        setDropTarget({ id: categoryId, placement });
+    }
+
+    function dropCategory(
+        event: DragEvent<HTMLLIElement>,
+        categoryId: number,
+    ): void {
+        event.preventDefault();
+
+        if (draggedCategoryId === null) {
+            return;
+        }
+
+        const placement =
+            dropTarget?.id === categoryId ? dropTarget.placement : 'before';
+        const nextCategories = moveCategory(
+            orderedCategories,
+            draggedCategoryId,
+            categoryId,
+            placement,
+        );
+
+        setDraggedCategoryId(null);
+        setDropTarget(null);
+        saveCategoryOrder(nextCategories);
+    }
+
+    function endDragging(): void {
+        setDraggedCategoryId(null);
+        setDropTarget(null);
+    }
+
+    function moveCategoryByOffset(categoryId: number, offset: number): void {
+        const currentIndex = orderedCategories.findIndex(
+            (category) => category.id === categoryId,
+        );
+        const targetIndex = currentIndex + offset;
+
+        if (
+            currentIndex === -1 ||
+            targetIndex < 0 ||
+            targetIndex >= orderedCategories.length
+        ) {
+            return;
+        }
+
+        const nextCategories = [...orderedCategories];
+        const [movedCategory] = nextCategories.splice(currentIndex, 1);
+
+        nextCategories.splice(targetIndex, 0, movedCategory);
+        saveCategoryOrder(nextCategories);
+    }
+
     return (
         <>
             <Head title="Categories" />
 
             <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                    <div>
+                    <div className="grid gap-1">
                         <h1 className="text-2xl font-semibold">Categories</h1>
-                        <p className="text-sm text-muted-foreground">
-                            {categories.total} categor
-                            {categories.total === 1 ? 'y' : 'ies'}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                            <span>
+                                {orderedCategories.length} categor
+                                {orderedCategories.length === 1 ? 'y' : 'ies'}
+                            </span>
+                            {isSavingOrder && (
+                                <span className="inline-flex items-center gap-1.5">
+                                    <LoaderCircle className="size-3.5 animate-spin" />
+                                    Saving order
+                                </span>
+                            )}
+                        </div>
                     </div>
 
                     <Button asChild>
@@ -80,178 +267,152 @@ export default function CategoriesIndex({ categories }: CategoriesIndexProps) {
                 </div>
 
                 <div className="overflow-hidden rounded-lg border border-sidebar-border/70 bg-background dark:border-sidebar-border">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="border-b bg-muted/50 text-xs font-medium text-muted-foreground uppercase">
-                                <tr>
-                                    <th className="px-4 py-3">Category</th>
-                                    <th className="hidden w-40 px-4 py-3 sm:table-cell">
-                                        Products
-                                    </th>
-                                    <th className="w-28 px-4 py-3 text-right">
-                                        Actions
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {categories.data.length > 0 ? (
-                                    categories.data.map((category) => (
-                                        <tr
-                                            key={category.id}
-                                            className="transition-colors hover:bg-muted/30"
+                    {orderedCategories.length > 0 ? (
+                        <ul className="divide-y">
+                            {orderedCategories.map((category, index) => {
+                                const isDragSource =
+                                    draggedCategoryId === category.id;
+                                const isDropBefore =
+                                    dropTarget?.id === category.id &&
+                                    dropTarget.placement === 'before' &&
+                                    !isDragSource;
+                                const isDropAfter =
+                                    dropTarget?.id === category.id &&
+                                    dropTarget.placement === 'after' &&
+                                    !isDragSource;
+
+                                return (
+                                    <li
+                                        key={category.id}
+                                        onDragOver={(event) =>
+                                            markDropTarget(event, category.id)
+                                        }
+                                        onDrop={(event) =>
+                                            dropCategory(event, category.id)
+                                        }
+                                        onDragEnd={endDragging}
+                                        className={cn(
+                                            'grid min-h-20 grid-cols-[auto_1fr] items-center gap-3 bg-background px-3 py-3 transition-colors hover:bg-muted/30 sm:grid-cols-[auto_1fr_auto] sm:px-4',
+                                            isDragSource && 'opacity-50',
+                                            isDropBefore &&
+                                                'shadow-[inset_0_2px_0_0_var(--primary)]',
+                                            isDropAfter &&
+                                                'shadow-[inset_0_-2px_0_0_var(--primary)]',
+                                            isSavingOrder &&
+                                                'cursor-wait opacity-80',
+                                        )}
+                                    >
+                                        <button
+                                            type="button"
+                                            draggable={!isSavingOrder}
+                                            onDragStart={(event) =>
+                                                startDragging(
+                                                    event,
+                                                    category.id,
+                                                )
+                                            }
+                                            className="flex size-9 cursor-grab items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-wait disabled:opacity-50"
+                                            disabled={isSavingOrder}
+                                            title="Reorder category"
+                                            aria-label={`Reorder ${category.name}`}
                                         >
-                                            <td className="px-4 py-4">
-                                                <div className="min-w-0">
-                                                    <div className="truncate font-medium">
-                                                        {category.name}
-                                                    </div>
-                                                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                                                        {category.description && (
-                                                            <span className="truncate text-muted-foreground">
-                                                                {
-                                                                    category.description
-                                                                }
-                                                            </span>
-                                                        )}
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="sm:hidden"
-                                                        >
-                                                            {formatProductsCount(
-                                                                category.products_count,
-                                                            )}
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="hidden px-4 py-4 sm:table-cell">
+                                            <GripVertical className="size-4" />
+                                        </button>
+
+                                        <div className="min-w-0">
+                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                                <span className="truncate font-medium">
+                                                    {category.name}
+                                                </span>
                                                 <Badge variant="secondary">
                                                     {formatProductsCount(
                                                         category.products_count,
                                                     )}
                                                 </Badge>
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        asChild
-                                                        variant="outline"
-                                                        size="icon"
-                                                        title="Edit category"
-                                                    >
-                                                        <Link
-                                                            href={editCategory(
-                                                                category.id,
-                                                            )}
-                                                            aria-label={`Edit ${category.name}`}
-                                                        >
-                                                            <Pencil />
-                                                        </Link>
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="destructive"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            deleteCategory(
-                                                                category,
-                                                            )
-                                                        }
-                                                        title="Delete category"
-                                                        aria-label={`Delete ${category.name}`}
-                                                    >
-                                                        <Trash2 />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td
-                                            colSpan={3}
-                                            className="px-4 py-16 text-center text-muted-foreground"
-                                        >
-                                            <div className="flex flex-col items-center gap-2">
-                                                <Tags className="size-8" />
-                                                <span>No categories yet.</span>
                                             </div>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                            {category.description && (
+                                                <p className="mt-1 truncate text-sm text-muted-foreground">
+                                                    {category.description}
+                                                </p>
+                                            )}
+                                        </div>
 
-                    {categories.total > 0 && (
-                        <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-sm text-muted-foreground">
-                                Showing {categories.from} to {categories.to} of{' '}
-                                {categories.total}
-                            </p>
-
-                            <div className="flex items-center gap-1">
-                                <PaginationButton
-                                    page={categories.current_page - 1}
-                                    disabled={categories.current_page === 1}
-                                    ariaLabel="Previous page"
-                                >
-                                    <ChevronLeft />
-                                </PaginationButton>
-
-                                {visiblePages[0] > 1 && (
-                                    <>
-                                        <PaginationButton page={1}>
-                                            1
-                                        </PaginationButton>
-                                        {visiblePages[0] > 2 && (
-                                            <span className="px-2 text-sm text-muted-foreground">
-                                                ...
-                                            </span>
-                                        )}
-                                    </>
-                                )}
-
-                                {visiblePages.map((page) => (
-                                    <PaginationButton
-                                        key={page}
-                                        page={page}
-                                        active={
-                                            page === categories.current_page
-                                        }
-                                    >
-                                        {page}
-                                    </PaginationButton>
-                                ))}
-
-                                {visiblePages[visiblePages.length - 1] <
-                                    categories.last_page && (
-                                    <>
-                                        {visiblePages[visiblePages.length - 1] <
-                                            categories.last_page - 1 && (
-                                            <span className="px-2 text-sm text-muted-foreground">
-                                                ...
-                                            </span>
-                                        )}
-                                        <PaginationButton
-                                            page={categories.last_page}
-                                        >
-                                            {categories.last_page}
-                                        </PaginationButton>
-                                    </>
-                                )}
-
-                                <PaginationButton
-                                    page={categories.current_page + 1}
-                                    disabled={
-                                        categories.current_page ===
-                                        categories.last_page
-                                    }
-                                    ariaLabel="Next page"
-                                >
-                                    <ChevronRight />
-                                </PaginationButton>
-                            </div>
+                                        <div className="col-span-2 flex justify-end gap-2 sm:col-span-1">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="icon"
+                                                disabled={
+                                                    isSavingOrder || index === 0
+                                                }
+                                                onClick={() =>
+                                                    moveCategoryByOffset(
+                                                        category.id,
+                                                        -1,
+                                                    )
+                                                }
+                                                title="Move category up"
+                                                aria-label={`Move ${category.name} up`}
+                                            >
+                                                <ArrowUp />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="icon"
+                                                disabled={
+                                                    isSavingOrder ||
+                                                    index ===
+                                                        orderedCategories.length -
+                                                            1
+                                                }
+                                                onClick={() =>
+                                                    moveCategoryByOffset(
+                                                        category.id,
+                                                        1,
+                                                    )
+                                                }
+                                                title="Move category down"
+                                                aria-label={`Move ${category.name} down`}
+                                            >
+                                                <ArrowDown />
+                                            </Button>
+                                            <Button
+                                                asChild
+                                                variant="outline"
+                                                size="icon"
+                                                title="Edit category"
+                                            >
+                                                <Link
+                                                    href={editCategory(
+                                                        category.id,
+                                                    )}
+                                                    aria-label={`Edit ${category.name}`}
+                                                >
+                                                    <Pencil />
+                                                </Link>
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                size="icon"
+                                                onClick={() =>
+                                                    deleteCategory(category)
+                                                }
+                                                title="Delete category"
+                                                aria-label={`Delete ${category.name}`}
+                                            >
+                                                <Trash2 />
+                                            </Button>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    ) : (
+                        <div className="flex min-h-52 flex-col items-center justify-center gap-2 px-4 py-16 text-center text-muted-foreground">
+                            <Tags className="size-8" />
+                            <span>No categories yet.</span>
                         </div>
                     )}
                 </div>
@@ -268,48 +429,3 @@ CategoriesIndex.layout = {
         },
     ],
 };
-
-function PaginationButton({
-    page,
-    active = false,
-    disabled = false,
-    ariaLabel,
-    children,
-}: {
-    page: number;
-    active?: boolean;
-    disabled?: boolean;
-    ariaLabel?: string;
-    children: ReactNode;
-}) {
-    if (disabled) {
-        return (
-            <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                disabled
-                aria-label={ariaLabel}
-            >
-                {children}
-            </Button>
-        );
-    }
-
-    return (
-        <Button
-            asChild
-            variant={active ? 'default' : 'outline'}
-            size="icon"
-            aria-current={active ? 'page' : undefined}
-        >
-            <Link
-                href={categoriesIndex({ query: page === 1 ? {} : { page } })}
-                preserveScroll
-                aria-label={ariaLabel ?? `Page ${page}`}
-            >
-                {children}
-            </Link>
-        </Button>
-    );
-}

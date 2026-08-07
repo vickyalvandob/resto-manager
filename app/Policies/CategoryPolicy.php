@@ -27,6 +27,11 @@ class CategoryPolicy
         return true;
     }
 
+    public function reorder(User $user): bool
+    {
+        return true;
+    }
+
     public function delete(User $user, Category $category): bool
     {
         return true;

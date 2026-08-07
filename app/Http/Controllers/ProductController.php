@@ -20,7 +20,7 @@ class ProductController extends Controller
 
         $products = Product::query()
             ->select(['id', 'category_id', 'name', 'description', 'price', 'stock', 'image', 'is_active', 'created_at'])
-            ->with('category:id,name,description')
+            ->with('category:id,name,description,sort_order')
             ->latest()
             ->paginate(10)
             ->through(fn (Product $product): array => $this->productPayload($product));
@@ -117,23 +117,24 @@ class ProductController extends Controller
     }
 
     /**
-     * @return array<int, array{id: int, name: string, description: string|null}>
+     * @return array<int, array{id: int, name: string, description: string|null, sort_order: int}>
      */
     private function categoryOptions(): array
     {
         return Category::query()
-            ->orderBy('name')
-            ->get(['id', 'name', 'description'])
+            ->ordered()
+            ->get(['id', 'name', 'description', 'sort_order'])
             ->map(fn (Category $category): array => [
                 'id' => $category->id,
                 'name' => $category->name,
                 'description' => $category->description,
+                'sort_order' => $category->sort_order,
             ])
             ->all();
     }
 
     /**
-     * @return array{id: int, category_id: int, name: string, description: string|null, price: string, stock: int, image: string|null, image_url: string|null, is_active: bool, category: array{id: int, name: string, description: string|null}}
+     * @return array{id: int, category_id: int, name: string, description: string|null, price: string, stock: int, image: string|null, image_url: string|null, is_active: bool, category: array{id: int, name: string, description: string|null, sort_order: int}}
      */
     private function productPayload(Product $product): array
     {
@@ -151,6 +152,7 @@ class ProductController extends Controller
                 'id' => $product->category->id,
                 'name' => $product->category->name,
                 'description' => $product->category->description,
+                'sort_order' => $product->category->sort_order,
             ],
         ];
     }

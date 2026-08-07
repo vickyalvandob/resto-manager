@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ReorderCategoriesRequest;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,11 +19,12 @@ class CategoryController extends Controller
         Gate::authorize('viewAny', Category::class);
 
         $categories = Category::query()
-            ->select(['id', 'name', 'description', 'created_at'])
+            ->select(['id', 'name', 'description', 'sort_order'])
             ->withCount('products')
-            ->latest()
-            ->paginate(10)
-            ->through(fn (Category $category): array => $this->categoryPayload($category));
+            ->ordered()
+            ->get()
+            ->map(fn (Category $category): array => $this->categoryPayload($category))
+            ->all();
 
         return Inertia::render('categories/index', [
             'categories' => $categories,
@@ -37,7 +40,10 @@ class CategoryController extends Controller
 
     public function store(StoreCategoryRequest $request): RedirectResponse
     {
-        Category::create($request->validated());
+        Category::create([
+            ...$request->validated(),
+            'sort_order' => Category::nextSortOrder(),
+        ]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category created.')]);
 
@@ -64,6 +70,18 @@ class CategoryController extends Controller
         return to_route('categories.index');
     }
 
+    public function reorder(ReorderCategoriesRequest $request): RedirectResponse
+    {
+        /** @var array<int, int> $categoryIds */
+        $categoryIds = $request->validated('categories');
+
+        DB::transaction(fn () => $this->updateCategoryOrder($categoryIds));
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Category order updated.')]);
+
+        return to_route('categories.index');
+    }
+
     public function destroy(Category $category): RedirectResponse
     {
         Gate::authorize('delete', $category);
@@ -82,7 +100,19 @@ class CategoryController extends Controller
     }
 
     /**
-     * @return array{id: int, name: string, description: string|null, products_count: int}
+     * @param  array<int, int>  $categoryIds
+     */
+    private function updateCategoryOrder(array $categoryIds): void
+    {
+        foreach ($categoryIds as $index => $categoryId) {
+            Category::query()
+                ->whereKey($categoryId)
+                ->update(['sort_order' => $index + 1]);
+        }
+    }
+
+    /**
+     * @return array{id: int, name: string, description: string|null, sort_order: int, products_count: int}
      */
     private function categoryPayload(Category $category): array
     {
@@ -90,6 +120,7 @@ class CategoryController extends Controller
             'id' => $category->id,
             'name' => $category->name,
             'description' => $category->description,
+            'sort_order' => $category->sort_order,
             'products_count' => $category->products_count,
         ];
     }

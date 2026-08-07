@@ -13,7 +13,7 @@ test('guests are redirected from categories', function () {
 
 test('categories page is displayed', function () {
     $user = User::factory()->create();
-    $category = Category::factory()->create(['name' => 'Coffee']);
+    $category = Category::factory()->create(['name' => 'Coffee', 'sort_order' => 1]);
 
     Product::factory()->count(2)->for($category)->create();
 
@@ -25,22 +25,22 @@ test('categories page is displayed', function () {
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('categories/index')
-            ->where('categories.current_page', 1)
-            ->where('categories.per_page', 10)
-            ->where('categories.total', 1)
-            ->has('categories.data', 1, fn (Assert $page) => $page
+            ->has('categories', 1, fn (Assert $page) => $page
                 ->where('id', $category->id)
                 ->where('name', 'Coffee')
+                ->where('sort_order', 1)
                 ->where('products_count', 2)
                 ->etc()
             )
         );
 });
 
-test('categories page is paginated', function () {
+test('categories page is ordered by sort order without pagination', function () {
     $user = User::factory()->create();
 
-    Category::factory()->count(12)->create();
+    $third = Category::factory()->create(['name' => 'Third', 'sort_order' => 3]);
+    $first = Category::factory()->create(['name' => 'First', 'sort_order' => 1]);
+    $second = Category::factory()->create(['name' => 'Second', 'sort_order' => 2]);
 
     $response = $this
         ->actingAs($user)
@@ -50,24 +50,10 @@ test('categories page is paginated', function () {
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('categories/index')
-            ->where('categories.current_page', 1)
-            ->where('categories.last_page', 2)
-            ->where('categories.total', 12)
-            ->has('categories.data', 10)
-        );
-
-    $response = $this
-        ->actingAs($user)
-        ->get(route('categories.index', ['page' => 2]));
-
-    $response
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('categories/index')
-            ->where('categories.current_page', 2)
-            ->where('categories.last_page', 2)
-            ->where('categories.total', 12)
-            ->has('categories.data', 2)
+            ->has('categories', 3)
+            ->where('categories.0.id', $first->id)
+            ->where('categories.1.id', $second->id)
+            ->where('categories.2.id', $third->id)
         );
 });
 
@@ -121,7 +107,8 @@ test('authenticated users can create categories', function () {
 
     $category = Category::where('name', 'Signature Drinks')->firstOrFail();
 
-    expect($category->description)->toBe('Popular house specials.');
+    expect($category->description)->toBe('Popular house specials.')
+        ->and($category->sort_order)->toBe(1);
 });
 
 test('authenticated users can update categories', function () {
@@ -143,6 +130,49 @@ test('authenticated users can update categories', function () {
 
     expect($category->name)->toBe('Espresso Bar')
         ->and($category->description)->toBe('Coffee based drinks.');
+});
+
+test('authenticated users can reorder categories', function () {
+    $user = User::factory()->create();
+    $first = Category::factory()->create(['sort_order' => 1]);
+    $second = Category::factory()->create(['sort_order' => 2]);
+    $third = Category::factory()->create(['sort_order' => 3]);
+
+    $response = $this
+        ->actingAs($user)
+        ->put(route('categories.reorder'), [
+            'categories' => [$third->id, $first->id, $second->id],
+        ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('categories.index'));
+
+    expect($third->refresh()->sort_order)->toBe(1)
+        ->and($first->refresh()->sort_order)->toBe(2)
+        ->and($second->refresh()->sort_order)->toBe(3);
+});
+
+test('category reorder requires every category exactly once', function () {
+    $user = User::factory()->create();
+    $first = Category::factory()->create(['sort_order' => 1]);
+    $second = Category::factory()->create(['sort_order' => 2]);
+
+    $response = $this
+        ->actingAs($user)
+        ->put(route('categories.reorder'), [
+            'categories' => [$first->id, $first->id],
+        ]);
+
+    $response->assertSessionHasErrors(['categories.1']);
+
+    $response = $this
+        ->actingAs($user)
+        ->put(route('categories.reorder'), [
+            'categories' => [$second->id],
+        ]);
+
+    $response->assertSessionHasErrors(['categories']);
 });
 
 test('authenticated users can delete empty categories', function () {

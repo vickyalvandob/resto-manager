@@ -6,6 +6,7 @@ export interface Category {
     id: number;
     name: string;
     description: string | null;
+    sort_order: number;
 }
 
 export interface CategoryWithProductCount extends Category {

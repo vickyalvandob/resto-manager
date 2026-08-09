@@ -3,7 +3,6 @@ import {
     BarChart3,
     ClipboardList,
     LayoutGrid,
-    Package,
     Settings,
     ShoppingCart,
     Tags,
@@ -22,7 +21,6 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import { index as categoriesIndex } from '@/routes/categories';
 import { index as ordersIndex } from '@/routes/orders';
 import { index as posIndex } from '@/routes/pos';
 import { index as productsIndex } from '@/routes/products';
@@ -47,14 +45,9 @@ const adminNavItems: NavItem[] = [
         icon: ClipboardList,
     },
     {
-        title: 'Categories',
-        href: categoriesIndex(),
-        icon: Tags,
-    },
-    {
-        title: 'Products',
+        title: 'Menu',
         href: productsIndex(),
-        icon: Package,
+        icon: Tags,
     },
     {
         title: 'Reports',

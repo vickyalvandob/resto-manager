@@ -35,7 +35,7 @@ export default function ProductsCreate({ categories }: ProductsCreateProps) {
 ProductsCreate.layout = {
     breadcrumbs: [
         {
-            title: 'Products',
+            title: 'Menu',
             href: productsIndex(),
         },
         {

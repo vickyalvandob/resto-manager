@@ -14,21 +14,11 @@ use Inertia\Response;
 
 class CategoryController extends Controller
 {
-    public function index(): Response
+    public function index(): RedirectResponse
     {
         Gate::authorize('viewAny', Category::class);
 
-        $categories = Category::query()
-            ->select(['id', 'name', 'description', 'sort_order'])
-            ->withCount('products')
-            ->ordered()
-            ->get()
-            ->map(fn (Category $category): array => $this->categoryPayload($category))
-            ->all();
-
-        return Inertia::render('categories/index', [
-            'categories' => $categories,
-        ]);
+        return to_route('products.index');
     }
 
     public function create(): Response
@@ -47,7 +37,7 @@ class CategoryController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category created.')]);
 
-        return to_route('categories.index');
+        return to_route('products.index');
     }
 
     public function edit(Category $category): Response
@@ -67,7 +57,7 @@ class CategoryController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category updated.')]);
 
-        return to_route('categories.index');
+        return to_route('products.index');
     }
 
     public function reorder(ReorderCategoriesRequest $request): RedirectResponse
@@ -79,7 +69,7 @@ class CategoryController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category order updated.')]);
 
-        return to_route('categories.index');
+        return to_route('products.index');
     }
 
     public function destroy(Category $category): RedirectResponse
@@ -96,7 +86,7 @@ class CategoryController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category deleted.')]);
 
-        return to_route('categories.index');
+        return to_route('products.index');
     }
 
     /**

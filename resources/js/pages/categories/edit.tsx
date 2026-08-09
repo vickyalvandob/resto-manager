@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { CategoryForm } from '@/pages/categories/category-form';
-import { index as categoriesIndex } from '@/routes/categories';
+import { index as productsIndex } from '@/routes/products';
 import type { CategoryWithProductCount } from '@/types';
 
 type CategoriesEditProps = {
@@ -29,12 +29,12 @@ export default function CategoriesEdit({ category }: CategoriesEditProps) {
 CategoriesEdit.layout = {
     breadcrumbs: [
         {
-            title: 'Categories',
-            href: categoriesIndex(),
+            title: 'Menu',
+            href: productsIndex(),
         },
         {
             title: 'Edit Category',
-            href: categoriesIndex(),
+            href: productsIndex(),
         },
     ],
 };

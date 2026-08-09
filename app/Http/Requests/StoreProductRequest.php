@@ -28,7 +28,6 @@ class StoreProductRequest extends FormRequest
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'is_active' => ['sometimes', 'boolean'],
             'is_available' => ['sometimes', 'boolean'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
         ];
     }
 }

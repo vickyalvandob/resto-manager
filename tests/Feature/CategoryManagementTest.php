@@ -11,31 +11,17 @@ test('guests are redirected from categories', function () {
     $response->assertRedirect(route('login'));
 });
 
-test('categories page is displayed', function () {
+test('categories index redirects to menu management', function () {
     $user = User::factory()->create();
-    $category = Category::factory()->create(['name' => 'Coffee', 'sort_order' => 1]);
-
-    Product::factory()->count(2)->for($category)->create();
 
     $response = $this
         ->actingAs($user)
         ->get(route('categories.index'));
 
-    $response
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('categories/index')
-            ->has('categories', 1, fn (Assert $page) => $page
-                ->where('id', $category->id)
-                ->where('name', 'Coffee')
-                ->where('sort_order', 1)
-                ->where('products_count', 2)
-                ->etc()
-            )
-        );
+    $response->assertRedirect(route('products.index'));
 });
 
-test('categories page is ordered by sort order without pagination', function () {
+test('menu management includes ordered categories', function () {
     $user = User::factory()->create();
 
     $third = Category::factory()->create(['name' => 'Third', 'sort_order' => 3]);
@@ -44,12 +30,12 @@ test('categories page is ordered by sort order without pagination', function () 
 
     $response = $this
         ->actingAs($user)
-        ->get(route('categories.index'));
+        ->get(route('products.index'));
 
     $response
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('categories/index')
+            ->component('products/index')
             ->has('categories', 3)
             ->where('categories.0.id', $first->id)
             ->where('categories.1.id', $second->id)
@@ -103,7 +89,7 @@ test('authenticated users can create categories', function () {
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('categories.index'));
+        ->assertRedirect(route('products.index'));
 
     $category = Category::where('name', 'Signature Drinks')->firstOrFail();
 
@@ -124,7 +110,7 @@ test('authenticated users can update categories', function () {
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('categories.index'));
+        ->assertRedirect(route('products.index'));
 
     $category->refresh();
 
@@ -146,7 +132,7 @@ test('authenticated users can reorder categories', function () {
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('categories.index'));
+        ->assertRedirect(route('products.index'));
 
     expect($third->refresh()->sort_order)->toBe(1)
         ->and($first->refresh()->sort_order)->toBe(2)
@@ -185,7 +171,7 @@ test('authenticated users can delete empty categories', function () {
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('categories.index'));
+        ->assertRedirect(route('products.index'));
 
     $this->assertModelMissing($category);
 });
@@ -197,10 +183,10 @@ test('authenticated users cannot delete categories that have products', function
 
     $response = $this
         ->actingAs($user)
-        ->from(route('categories.index'))
+        ->from(route('products.index'))
         ->delete(route('categories.destroy', $category));
 
-    $response->assertRedirect(route('categories.index'));
+    $response->assertRedirect(route('products.index'));
 
     $this->assertModelExists($category);
     $this->assertModelExists($product);

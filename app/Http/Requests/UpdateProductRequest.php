@@ -28,7 +28,6 @@ class UpdateProductRequest extends FormRequest
             'remove_image' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
             'is_available' => ['sometimes', 'boolean'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
         ];
     }
 }

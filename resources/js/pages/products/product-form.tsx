@@ -14,11 +14,11 @@ import { index as productsIndex } from '@/routes/products';
 import type { Category, Product } from '@/types';
 
 type ProductFormData = {
+    _method: string;
     name: string;
     category_id: string;
     description: string;
     price: string;
-    sort_order: string;
     image: File | null;
     remove_image: boolean;
     is_available: boolean;
@@ -31,11 +31,11 @@ type ProductFormProps = {
 };
 
 const emptyProductForm = (): ProductFormData => ({
+    _method: '',
     name: '',
     category_id: '',
     description: '',
     price: '',
-    sort_order: '0',
     image: null,
     remove_image: false,
     is_available: true,
@@ -53,11 +53,11 @@ function productDefaults(product?: Product): ProductFormData {
     }
 
     return {
+        _method: 'put',
         name: product.name,
         category_id: String(product.category_id),
         description: product.description ?? '',
         price: formatPriceForInput(product.price),
-        sort_order: String(product.sort_order),
         image: null,
         remove_image: false,
         is_available: product.is_available,
@@ -76,8 +76,8 @@ export function ProductForm({
         event.preventDefault();
 
         const action = product
-            ? updateProduct.form(product.id).action
-            : storeProduct.form().action;
+            ? updateProduct.url(product.id)
+            : storeProduct.url();
 
         post(action, {
             forceFormData: true,
@@ -144,23 +144,6 @@ export function ProductForm({
                     />
                     <InputError message={errors.price} />
                 </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="sort_order">Sort order</Label>
-                    <Input
-                        id="sort_order"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={data.sort_order}
-                        onChange={(event) =>
-                            setData('sort_order', event.target.value)
-                        }
-                        aria-invalid={Boolean(errors.sort_order)}
-                    />
-                    <InputError message={errors.sort_order} />
-                </div>
-
                 <div className="grid gap-2 md:col-span-2">
                     <Label htmlFor="description">Description</Label>
                     <textarea

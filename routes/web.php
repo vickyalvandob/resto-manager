@@ -22,6 +22,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('categories/reorder', [CategoryController::class, 'reorder'])->name('categories.reorder');
         Route::resource('categories', CategoryController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
 
+        Route::put('products/reorder', [ProductController::class, 'reorder'])->name('products.reorder');
         Route::put('products/{product}/availability', [ProductController::class, 'toggleAvailability'])->name('products.availability');
         Route::resource('products', ProductController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
 

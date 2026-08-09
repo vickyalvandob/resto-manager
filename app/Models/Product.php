@@ -49,6 +49,13 @@ class Product extends Model
         return $query->orderBy('sort_order')->orderBy('name')->orderBy('id');
     }
 
+    public static function nextSortOrderForCategory(int $categoryId): int
+    {
+        return ((int) static::query()
+            ->where('category_id', $categoryId)
+            ->max('sort_order')) + 1;
+    }
+
     /**
      * @return BelongsTo<Category, $this>
      */

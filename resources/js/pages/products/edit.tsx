@@ -37,7 +37,7 @@ export default function ProductsEdit({
 ProductsEdit.layout = {
     breadcrumbs: [
         {
-            title: 'Products',
+            title: 'Menu',
             href: productsIndex(),
         },
         {

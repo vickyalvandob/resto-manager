@@ -185,6 +185,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
         router.post(storeOrder(), checkoutPayload(), {
             preserveScroll: true,
+            onSuccess: () => router.flushAll(),
             onError: (formErrors) => setErrors(formErrors),
             onFinish: () => setIsSubmitting(false),
         });
@@ -200,6 +201,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
         router.post(storeOrder(), checkoutPayload(paymentMethod), {
             preserveScroll: true,
+            onSuccess: () => router.flushAll(),
             onError: (formErrors) => setErrors(formErrors),
             onFinish: () => setIsSubmitting(false),
         });
@@ -209,9 +211,9 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
         <>
             <Head title="POS" />
 
-            <div className="grid h-full min-h-[calc(100vh-4rem)] gap-4 p-4 xl:grid-cols-[1fr_420px]">
-                <section className="flex min-w-0 flex-col gap-4">
-                    <div className="flex flex-col gap-3 rounded-lg border bg-background p-4 sm:flex-row sm:items-center">
+            <div className="grid h-[calc(100vh-4rem)] min-h-0 grid-rows-[minmax(0,1fr)_minmax(20rem,0.85fr)] gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:grid-rows-1">
+                <section className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
+                    <div className="flex shrink-0 flex-col gap-3 rounded-lg border bg-background p-4 sm:flex-row sm:items-center">
                         <div className="relative flex-1">
                             <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
@@ -256,7 +258,10 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 overflow-y-auto pb-2 md:grid-cols-3 2xl:grid-cols-4">
+                    <div
+                        className="grid min-h-0 flex-1 grid-cols-2 content-start gap-3 overflow-y-auto pr-1 pb-2 md:grid-cols-3 2xl:grid-cols-4"
+                        scroll-region=""
+                    >
                         {filteredProducts.map((product) => (
                             <button
                                 key={product.id}
@@ -290,8 +295,8 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                     </div>
                 </section>
 
-                <aside className="flex min-h-[560px] flex-col rounded-lg border bg-background">
-                    <div className="flex items-center justify-between border-b p-4">
+                <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
+                    <div className="flex shrink-0 items-center justify-between border-b p-4">
                         <div>
                             <h1 className="text-xl font-semibold">Cart</h1>
                             <p className="text-sm text-muted-foreground">
@@ -301,9 +306,12 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         <ShoppingCart className="size-5 text-muted-foreground" />
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4">
+                    <div
+                        className="min-h-0 flex-1 overflow-y-auto p-4"
+                        scroll-region=""
+                    >
                         {cart.length === 0 ? (
-                            <div className="flex h-full min-h-72 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+                            <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
                                 <ShoppingCart className="size-10" />
                                 <span>Cart is empty.</span>
                             </div>
@@ -397,7 +405,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         )}
                     </div>
 
-                    <div className="grid gap-4 border-t p-4">
+                    <div className="grid shrink-0 gap-4 border-t p-4">
                         <InputError
                             message={
                                 errors.items ||

@@ -1,46 +1,283 @@
 import { Head, Link, router } from '@inertiajs/react';
 import {
-    ChevronLeft,
-    ChevronRight,
     Eye,
     EyeOff,
+    GripVertical,
     ImageIcon,
+    LoaderCircle,
     Pencil,
     Plus,
+    Tags,
     Trash2,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useMemo, useState } from 'react';
+import type { DragEvent } from 'react';
+import {
+    destroy as destroyCategory,
+    edit as editCategory,
+    create as newCategory,
+    reorder as reorderCategories,
+} from '@/actions/App/Http/Controllers/CategoryController';
 import {
     destroy as destroyProduct,
     edit as editProduct,
     create as newProduct,
+    reorder as reorderProducts,
     toggleAvailability,
 } from '@/actions/App/Http/Controllers/ProductController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatRupiah } from '@/lib/currency';
+import { cn } from '@/lib/utils';
 import { index as productsIndex } from '@/routes/products';
-import type { PaginatedData, Product } from '@/types';
+import type { CategoryWithProductCount, Product } from '@/types';
 
 type ProductsIndexProps = {
-    products: PaginatedData<Product>;
+    categories: CategoryWithProductCount[];
+    products: Product[];
 };
 
-function getVisiblePages(currentPage: number, lastPage: number): number[] {
-    const start = Math.max(1, currentPage - 2);
-    const end = Math.min(lastPage, currentPage + 2);
+type DropPlacement = 'before' | 'after';
 
-    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+type DropTarget = {
+    id: number;
+    placement: DropPlacement;
+};
+
+function productCount(count: number): string {
+    return `${count} produk`;
 }
 
-export default function ProductsIndex({ products }: ProductsIndexProps) {
-    const visiblePages = getVisiblePages(
-        products.current_page,
-        products.last_page,
+function itemIds<T extends { id: number }>(items: T[]): number[] {
+    return items.map((item) => item.id);
+}
+
+function groupProductIdsByCategory(
+    products: Product[],
+): Record<number, number[]> {
+    return products.reduce<Record<number, number[]>>((groups, product) => {
+        groups[product.category_id] ??= [];
+        groups[product.category_id].push(product.id);
+
+        return groups;
+    }, {});
+}
+
+function hasSameOrder<T extends { id: number }>(
+    currentItems: T[],
+    nextItems: T[],
+): boolean {
+    return itemIds(currentItems).join(',') === itemIds(nextItems).join(',');
+}
+
+function moveItem<T extends { id: number }>(
+    items: T[],
+    draggedItemId: number,
+    targetItemId: number,
+    placement: DropPlacement,
+): T[] {
+    if (draggedItemId === targetItemId) {
+        return items;
+    }
+
+    const draggedItem = items.find((item) => item.id === draggedItemId);
+
+    if (!draggedItem) {
+        return items;
+    }
+
+    const remainingItems = items.filter((item) => item.id !== draggedItemId);
+    const targetIndex = remainingItems.findIndex(
+        (item) => item.id === targetItemId,
     );
 
+    if (targetIndex === -1) {
+        return items;
+    }
+
+    const insertIndex = placement === 'after' ? targetIndex + 1 : targetIndex;
+    const nextItems = [...remainingItems];
+
+    nextItems.splice(insertIndex, 0, draggedItem);
+
+    return nextItems;
+}
+
+function dropPlacementFromEvent(event: DragEvent<HTMLElement>): DropPlacement {
+    const bounds = event.currentTarget.getBoundingClientRect();
+
+    return event.clientY > bounds.top + bounds.height / 2 ? 'after' : 'before';
+}
+
+export default function ProductsIndex({
+    categories,
+    products,
+}: ProductsIndexProps) {
+    const [activeCategoryId, setActiveCategoryId] = useState<number | null>(
+        () => categories[0]?.id ?? null,
+    );
+    const [localCategoryIds, setLocalCategoryIds] = useState(() =>
+        itemIds(categories),
+    );
+    const [localProductIdsByCategory, setLocalProductIdsByCategory] = useState(
+        () => groupProductIdsByCategory(products),
+    );
+    const [draggedCategoryId, setDraggedCategoryId] = useState<number | null>(
+        null,
+    );
+    const [draggedProductId, setDraggedProductId] = useState<number | null>(
+        null,
+    );
+    const [categoryDropTarget, setCategoryDropTarget] =
+        useState<DropTarget | null>(null);
+    const [productDropTarget, setProductDropTarget] =
+        useState<DropTarget | null>(null);
+    const [isSavingCategoryOrder, setIsSavingCategoryOrder] = useState(false);
+    const [savingProductCategoryId, setSavingProductCategoryId] = useState<
+        number | null
+    >(null);
+
+    const categoriesById = useMemo(
+        () => new Map(categories.map((category) => [category.id, category])),
+        [categories],
+    );
+    const productsById = useMemo(
+        () => new Map(products.map((product) => [product.id, product])),
+        [products],
+    );
+    const orderedCategories = useMemo(() => {
+        const hasValidLocalOrder =
+            localCategoryIds.length === categories.length &&
+            localCategoryIds.every((categoryId) =>
+                categoriesById.has(categoryId),
+            );
+
+        return hasValidLocalOrder
+            ? localCategoryIds.map(
+                  (categoryId) =>
+                      categoriesById.get(
+                          categoryId,
+                      ) as CategoryWithProductCount,
+              )
+            : categories;
+    }, [categories, categoriesById, localCategoryIds]);
+    const selectedCategoryId = orderedCategories.some(
+        (category) => category.id === activeCategoryId,
+    )
+        ? activeCategoryId
+        : (orderedCategories[0]?.id ?? null);
+    const selectedCategory =
+        orderedCategories.find(
+            (category) => category.id === selectedCategoryId,
+        ) ?? null;
+    const isSavingProductOrder =
+        selectedCategoryId !== null &&
+        savingProductCategoryId === selectedCategoryId;
+    const activeProducts =
+        selectedCategoryId === null
+            ? []
+            : productsForCategory(selectedCategoryId);
+
+    function productsForCategory(categoryId: number): Product[] {
+        const categoryProducts = products.filter(
+            (product) => product.category_id === categoryId,
+        );
+        const localProductIds = localProductIdsByCategory[categoryId] ?? [];
+        const categoryProductIds = new Set(
+            categoryProducts.map((product) => product.id),
+        );
+        const hasValidLocalOrder =
+            localProductIds.length === categoryProducts.length &&
+            localProductIds.every((productId) =>
+                categoryProductIds.has(productId),
+            );
+
+        return hasValidLocalOrder
+            ? localProductIds.map(
+                  (productId) => productsById.get(productId) as Product,
+              )
+            : categoryProducts;
+    }
+
+    function saveCategoryOrder(
+        nextCategories: CategoryWithProductCount[],
+    ): void {
+        if (hasSameOrder(orderedCategories, nextCategories)) {
+            return;
+        }
+
+        setLocalCategoryIds(itemIds(nextCategories));
+        setIsSavingCategoryOrder(true);
+
+        router.put(
+            reorderCategories(),
+            {
+                categories: itemIds(nextCategories),
+            },
+            {
+                preserveScroll: true,
+                onError: () => setLocalCategoryIds(itemIds(categories)),
+                onFinish: () => setIsSavingCategoryOrder(false),
+            },
+        );
+    }
+
+    function saveProductOrder(
+        categoryId: number,
+        nextProducts: Product[],
+    ): void {
+        const currentProducts = productsForCategory(categoryId);
+
+        if (hasSameOrder(currentProducts, nextProducts)) {
+            return;
+        }
+
+        setLocalProductIdsByCategory((current) => ({
+            ...current,
+            [categoryId]: itemIds(nextProducts),
+        }));
+        setSavingProductCategoryId(categoryId);
+
+        router.put(
+            reorderProducts(),
+            {
+                category_id: categoryId,
+                products: itemIds(nextProducts),
+            },
+            {
+                preserveScroll: true,
+                onError: () =>
+                    setLocalProductIdsByCategory((current) => ({
+                        ...current,
+                        [categoryId]: itemIds(
+                            products.filter(
+                                (product) => product.category_id === categoryId,
+                            ),
+                        ),
+                    })),
+                onFinish: () => setSavingProductCategoryId(null),
+            },
+        );
+    }
+
+    function deleteCategory(category: CategoryWithProductCount): void {
+        if (category.products_count > 0) {
+            window.alert('Pindahkan atau hapus produk di kategori ini dulu.');
+
+            return;
+        }
+
+        if (!window.confirm(`Hapus ${category.name}?`)) {
+            return;
+        }
+
+        router.delete(destroyCategory(category.id), {
+            preserveScroll: true,
+        });
+    }
+
     function deleteProduct(product: Product): void {
-        if (!window.confirm(`Delete ${product.name}?`)) {
+        if (!window.confirm(`Hapus ${product.name}?`)) {
             return;
         }
 
@@ -57,278 +294,509 @@ export default function ProductsIndex({ products }: ProductsIndexProps) {
         );
     }
 
+    function startDraggingCategory(
+        event: DragEvent<HTMLButtonElement>,
+        categoryId: number,
+    ): void {
+        if (isSavingCategoryOrder) {
+            event.preventDefault();
+
+            return;
+        }
+
+        setDraggedCategoryId(categoryId);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(categoryId));
+    }
+
+    function markCategoryDropTarget(
+        event: DragEvent<HTMLLIElement>,
+        categoryId: number,
+    ): void {
+        if (draggedCategoryId === null || draggedCategoryId === categoryId) {
+            return;
+        }
+
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setCategoryDropTarget({
+            id: categoryId,
+            placement: dropPlacementFromEvent(event),
+        });
+    }
+
+    function dropCategory(
+        event: DragEvent<HTMLLIElement>,
+        categoryId: number,
+    ): void {
+        event.preventDefault();
+
+        if (draggedCategoryId === null) {
+            return;
+        }
+
+        const placement =
+            categoryDropTarget?.id === categoryId
+                ? categoryDropTarget.placement
+                : 'before';
+        const nextCategories = moveItem(
+            orderedCategories,
+            draggedCategoryId,
+            categoryId,
+            placement,
+        );
+
+        setDraggedCategoryId(null);
+        setCategoryDropTarget(null);
+        saveCategoryOrder(nextCategories);
+    }
+
+    function startDraggingProduct(
+        event: DragEvent<HTMLButtonElement>,
+        productId: number,
+    ): void {
+        if (isSavingProductOrder) {
+            event.preventDefault();
+
+            return;
+        }
+
+        setDraggedProductId(productId);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(productId));
+    }
+
+    function markProductDropTarget(
+        event: DragEvent<HTMLLIElement>,
+        productId: number,
+    ): void {
+        if (draggedProductId === null || draggedProductId === productId) {
+            return;
+        }
+
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setProductDropTarget({
+            id: productId,
+            placement: dropPlacementFromEvent(event),
+        });
+    }
+
+    function dropProduct(
+        event: DragEvent<HTMLLIElement>,
+        productId: number,
+    ): void {
+        event.preventDefault();
+
+        if (draggedProductId === null || selectedCategoryId === null) {
+            return;
+        }
+
+        const placement =
+            productDropTarget?.id === productId
+                ? productDropTarget.placement
+                : 'before';
+        const nextProducts = moveItem(
+            activeProducts,
+            draggedProductId,
+            productId,
+            placement,
+        );
+
+        setDraggedProductId(null);
+        setProductDropTarget(null);
+        saveProductOrder(selectedCategoryId, nextProducts);
+    }
+
+    function endDragging(): void {
+        setDraggedCategoryId(null);
+        setDraggedProductId(null);
+        setCategoryDropTarget(null);
+        setProductDropTarget(null);
+    }
+
     return (
         <>
-            <Head title="Products" />
+            <Head title="Menu" />
 
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
+            <div className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                    <div>
-                        <h1 className="text-2xl font-semibold">Products</h1>
-                        <p className="text-sm text-muted-foreground">
-                            {products.total} product
-                            {products.total === 1 ? '' : 's'}
-                        </p>
+                    <div className="grid gap-1">
+                        <h1 className="text-2xl font-semibold">Menu</h1>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                            <span>{orderedCategories.length} kategori</span>
+                            <span>{products.length} produk</span>
+                            {(isSavingCategoryOrder ||
+                                isSavingProductOrder) && (
+                                <span className="inline-flex items-center gap-1.5">
+                                    <LoaderCircle className="size-3.5 animate-spin" />
+                                    Menyimpan
+                                </span>
+                            )}
+                        </div>
                     </div>
 
-                    <Button asChild>
-                        <Link href={newProduct()}>
-                            <Plus />
-                            New Product
-                        </Link>
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button variant="outline" asChild>
+                            <Link href={newCategory()}>
+                                <Plus />
+                                Kategori
+                            </Link>
+                        </Button>
+                        {categories.length > 0 ? (
+                            <Button asChild>
+                                <Link href={newProduct()}>
+                                    <Plus />
+                                    Produk
+                                </Link>
+                            </Button>
+                        ) : (
+                            <Button type="button" disabled>
+                                <Plus />
+                                Produk
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
-                <div className="overflow-hidden rounded-lg border border-sidebar-border/70 bg-background dark:border-sidebar-border">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="border-b bg-muted/50 text-xs font-medium text-muted-foreground uppercase">
-                                <tr>
-                                    <th className="px-4 py-3">Product</th>
-                                    <th className="hidden px-4 py-3 md:table-cell">
-                                        Category
-                                    </th>
-                                    <th className="px-4 py-3">Price</th>
-                                    <th className="hidden px-4 py-3 sm:table-cell">
-                                        Order
-                                    </th>
-                                    <th className="hidden px-4 py-3 lg:table-cell">
-                                        POS
-                                    </th>
-                                    <th className="w-28 px-4 py-3 text-right">
-                                        Actions
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {products.data.length > 0 ? (
-                                    products.data.map((product) => (
-                                        <tr
-                                            key={product.id}
-                                            className="transition-colors hover:bg-muted/30"
+                <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
+                    <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-sidebar-border/70 bg-background dark:border-sidebar-border">
+                        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                            <div>
+                                <h2 className="font-semibold">Kategori</h2>
+                                <p className="text-sm text-muted-foreground">
+                                    {orderedCategories.length} item
+                                </p>
+                            </div>
+                            <Button variant="outline" size="icon" asChild>
+                                <Link
+                                    href={newCategory()}
+                                    aria-label="Tambah kategori"
+                                >
+                                    <Plus />
+                                </Link>
+                            </Button>
+                        </div>
+
+                        {orderedCategories.length > 0 ? (
+                            <ul className="min-h-0 flex-1 divide-y overflow-y-auto">
+                                {orderedCategories.map((category) => {
+                                    const isActive =
+                                        selectedCategoryId === category.id;
+                                    const isDragSource =
+                                        draggedCategoryId === category.id;
+                                    const isDropBefore =
+                                        categoryDropTarget?.id ===
+                                            category.id &&
+                                        categoryDropTarget.placement ===
+                                            'before' &&
+                                        !isDragSource;
+                                    const isDropAfter =
+                                        categoryDropTarget?.id ===
+                                            category.id &&
+                                        categoryDropTarget.placement ===
+                                            'after' &&
+                                        !isDragSource;
+
+                                    return (
+                                        <li
+                                            key={category.id}
+                                            onDragOver={(event) =>
+                                                markCategoryDropTarget(
+                                                    event,
+                                                    category.id,
+                                                )
+                                            }
+                                            onDrop={(event) =>
+                                                dropCategory(event, category.id)
+                                            }
+                                            onDragEnd={endDragging}
+                                            className={cn(
+                                                'grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2 transition-colors',
+                                                isActive
+                                                    ? 'bg-muted/60'
+                                                    : 'bg-background hover:bg-muted/30',
+                                                isDragSource && 'opacity-50',
+                                                isDropBefore &&
+                                                    'shadow-[inset_0_2px_0_0_var(--primary)]',
+                                                isDropAfter &&
+                                                    'shadow-[inset_0_-2px_0_0_var(--primary)]',
+                                            )}
                                         >
-                                            <td className="px-4 py-4">
-                                                <div className="flex min-w-0 items-center gap-3">
-                                                    {product.image_url ? (
-                                                        <img
-                                                            src={
-                                                                product.image_url
-                                                            }
-                                                            alt={product.name}
-                                                            className="size-11 rounded-md border object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className="flex size-11 items-center justify-center rounded-md border bg-muted text-muted-foreground">
-                                                            <ImageIcon className="size-5" />
-                                                        </div>
+                                            <button
+                                                type="button"
+                                                draggable={
+                                                    !isSavingCategoryOrder
+                                                }
+                                                onDragStart={(event) =>
+                                                    startDraggingCategory(
+                                                        event,
+                                                        category.id,
+                                                    )
+                                                }
+                                                className="flex size-8 cursor-grab items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-background hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-wait disabled:opacity-50"
+                                                disabled={isSavingCategoryOrder}
+                                                title="Ubah urutan kategori"
+                                                aria-label={`Ubah urutan ${category.name}`}
+                                            >
+                                                <GripVertical className="size-4" />
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setActiveCategoryId(
+                                                        category.id,
+                                                    )
+                                                }
+                                                className="min-w-0 rounded-md px-2 py-1.5 text-left transition-colors outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                            >
+                                                <span className="block truncate font-medium">
+                                                    {category.name}
+                                                </span>
+                                                <span className="mt-0.5 block text-xs text-muted-foreground">
+                                                    {productCount(
+                                                        category.products_count,
                                                     )}
-                                                    <div className="min-w-0">
-                                                        <div className="truncate font-medium">
-                                                            {product.name}
-                                                        </div>
-                                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:hidden">
-                                                            <span>
-                                                                {
-                                                                    product
-                                                                        .category
-                                                                        .name
-                                                                }
-                                                            </span>
-                                                            <span className="sm:hidden">
-                                                                Order{' '}
-                                                                {
-                                                                    product.sort_order
-                                                                }
-                                                            </span>
-                                                            <Badge
-                                                                variant={
-                                                                    product.is_available
-                                                                        ? 'secondary'
-                                                                        : 'outline'
-                                                                }
-                                                                className="lg:hidden"
-                                                            >
-                                                                {product.is_available
-                                                                    ? 'Tersedia'
-                                                                    : 'Tidak tersedia'}
-                                                            </Badge>
-                                                        </div>
-                                                        {product.description && (
-                                                            <div className="mt-1 hidden truncate text-muted-foreground sm:block">
-                                                                {
-                                                                    product.description
-                                                                }
-                                                            </div>
+                                                </span>
+                                            </button>
+
+                                            <div className="flex items-center gap-1">
+                                                <Button
+                                                    asChild
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    title="Edit kategori"
+                                                >
+                                                    <Link
+                                                        href={editCategory(
+                                                            category.id,
                                                         )}
-                                                    </div>
+                                                        aria-label={`Edit ${category.name}`}
+                                                    >
+                                                        <Pencil />
+                                                    </Link>
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        deleteCategory(category)
+                                                    }
+                                                    title="Hapus kategori"
+                                                    aria-label={`Hapus ${category.name}`}
+                                                >
+                                                    <Trash2 />
+                                                </Button>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        ) : (
+                            <div className="flex min-h-52 flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center text-muted-foreground">
+                                <Tags className="size-8" />
+                                <span>Belum ada kategori.</span>
+                            </div>
+                        )}
+                    </aside>
+
+                    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-sidebar-border/70 bg-background dark:border-sidebar-border">
+                        <div className="flex flex-col justify-between gap-3 border-b px-4 py-3 sm:flex-row sm:items-center">
+                            <div className="min-w-0">
+                                <h2 className="truncate font-semibold">
+                                    {selectedCategory
+                                        ? selectedCategory.name
+                                        : 'Produk'}
+                                </h2>
+                                <p className="text-sm text-muted-foreground">
+                                    {selectedCategory
+                                        ? productCount(activeProducts.length)
+                                        : 'Pilih kategori'}
+                                </p>
+                            </div>
+
+                            {categories.length > 0 ? (
+                                <Button asChild>
+                                    <Link href={newProduct()}>
+                                        <Plus />
+                                        Produk
+                                    </Link>
+                                </Button>
+                            ) : (
+                                <Button type="button" disabled>
+                                    <Plus />
+                                    Produk
+                                </Button>
+                            )}
+                        </div>
+
+                        {selectedCategoryId === null ? (
+                            <div className="flex flex-1 items-center justify-center px-4 py-16 text-center text-muted-foreground">
+                                Buat kategori dulu sebelum menambahkan produk.
+                            </div>
+                        ) : activeProducts.length > 0 ? (
+                            <ul className="min-h-0 flex-1 divide-y overflow-y-auto">
+                                {activeProducts.map((product) => {
+                                    const isDragSource =
+                                        draggedProductId === product.id;
+                                    const isDropBefore =
+                                        productDropTarget?.id === product.id &&
+                                        productDropTarget.placement ===
+                                            'before' &&
+                                        !isDragSource;
+                                    const isDropAfter =
+                                        productDropTarget?.id === product.id &&
+                                        productDropTarget.placement ===
+                                            'after' &&
+                                        !isDragSource;
+
+                                    return (
+                                        <li
+                                            key={product.id}
+                                            onDragOver={(event) =>
+                                                markProductDropTarget(
+                                                    event,
+                                                    product.id,
+                                                )
+                                            }
+                                            onDrop={(event) =>
+                                                dropProduct(event, product.id)
+                                            }
+                                            onDragEnd={endDragging}
+                                            className={cn(
+                                                'grid grid-cols-[auto_3rem_1fr] gap-3 bg-background px-3 py-3 transition-colors hover:bg-muted/30 sm:grid-cols-[auto_3.5rem_1fr_auto]',
+                                                isDragSource && 'opacity-50',
+                                                isDropBefore &&
+                                                    'shadow-[inset_0_2px_0_0_var(--primary)]',
+                                                isDropAfter &&
+                                                    'shadow-[inset_0_-2px_0_0_var(--primary)]',
+                                            )}
+                                        >
+                                            <button
+                                                type="button"
+                                                draggable={
+                                                    !isSavingProductOrder
+                                                }
+                                                onDragStart={(event) =>
+                                                    startDraggingProduct(
+                                                        event,
+                                                        product.id,
+                                                    )
+                                                }
+                                                className="mt-1 flex size-8 cursor-grab items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-wait disabled:opacity-50"
+                                                disabled={isSavingProductOrder}
+                                                title="Ubah urutan produk"
+                                                aria-label={`Ubah urutan ${product.name}`}
+                                            >
+                                                <GripVertical className="size-4" />
+                                            </button>
+
+                                            {product.image_url ? (
+                                                <img
+                                                    src={product.image_url}
+                                                    alt={product.name}
+                                                    className="size-12 rounded-md border object-cover sm:size-14"
+                                                />
+                                            ) : (
+                                                <div className="flex size-12 items-center justify-center rounded-md border bg-muted text-muted-foreground sm:size-14">
+                                                    <ImageIcon className="size-5" />
                                                 </div>
-                                            </td>
-                                            <td className="hidden truncate px-4 py-4 text-muted-foreground md:table-cell">
-                                                {product.category.name}
-                                            </td>
-                                            <td className="px-4 py-4 font-medium whitespace-nowrap">
-                                                {formatRupiah(product.price)}
-                                            </td>
-                                            <td className="hidden px-4 py-4 sm:table-cell">
-                                                {product.sort_order}
-                                            </td>
-                                            <td className="hidden px-4 py-4 lg:table-cell">
-                                                <Badge
-                                                    variant={
+                                            )}
+
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="truncate font-medium">
+                                                        {product.name}
+                                                    </span>
+                                                    <Badge
+                                                        variant={
+                                                            product.is_available
+                                                                ? 'secondary'
+                                                                : 'outline'
+                                                        }
+                                                    >
+                                                        {product.is_available
+                                                            ? 'Tersedia'
+                                                            : 'Tidak tersedia'}
+                                                    </Badge>
+                                                </div>
+                                                {product.description && (
+                                                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                                                        {product.description}
+                                                    </p>
+                                                )}
+                                                <div className="mt-2 text-sm font-medium">
+                                                    {formatRupiah(
+                                                        product.price,
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="col-span-3 flex items-center justify-end gap-2 sm:col-span-1">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        toggleProduct(product)
+                                                    }
+                                                    title={
                                                         product.is_available
-                                                            ? 'secondary'
-                                                            : 'outline'
+                                                            ? 'Tandai tidak tersedia'
+                                                            : 'Tandai tersedia'
+                                                    }
+                                                    aria-label={
+                                                        product.is_available
+                                                            ? `Tandai ${product.name} tidak tersedia`
+                                                            : `Tandai ${product.name} tersedia`
                                                     }
                                                 >
-                                                    {product.is_available
-                                                        ? 'Tersedia'
-                                                        : 'Tidak tersedia'}
-                                                </Badge>
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            toggleProduct(
-                                                                product,
-                                                            )
-                                                        }
-                                                        title={
-                                                            product.is_available
-                                                                ? 'Tandai tidak tersedia'
-                                                                : 'Tandai tersedia'
-                                                        }
-                                                        aria-label={
-                                                            product.is_available
-                                                                ? `Tandai ${product.name} tidak tersedia`
-                                                                : `Tandai ${product.name} tersedia`
-                                                        }
-                                                    >
-                                                        {product.is_available ? (
-                                                            <EyeOff />
-                                                        ) : (
-                                                            <Eye />
+                                                    {product.is_available ? (
+                                                        <EyeOff />
+                                                    ) : (
+                                                        <Eye />
+                                                    )}
+                                                </Button>
+                                                <Button
+                                                    asChild
+                                                    variant="outline"
+                                                    size="icon"
+                                                    title="Edit produk"
+                                                >
+                                                    <Link
+                                                        href={editProduct(
+                                                            product.id,
                                                         )}
-                                                    </Button>
-                                                    <Button
-                                                        asChild
-                                                        variant="outline"
-                                                        size="icon"
-                                                        title="Edit product"
+                                                        aria-label={`Edit ${product.name}`}
                                                     >
-                                                        <Link
-                                                            href={editProduct(
-                                                                product.id,
-                                                            )}
-                                                            aria-label={`Edit ${product.name}`}
-                                                        >
-                                                            <Pencil />
-                                                        </Link>
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="destructive"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            deleteProduct(
-                                                                product,
-                                                            )
-                                                        }
-                                                        title="Delete product"
-                                                        aria-label={`Delete ${product.name}`}
-                                                    >
-                                                        <Trash2 />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td
-                                            colSpan={6}
-                                            className="px-4 py-16 text-center text-muted-foreground"
-                                        >
-                                            No products yet.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {products.total > 0 && (
-                        <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-sm text-muted-foreground">
-                                Showing {products.from} to {products.to} of{' '}
-                                {products.total}
-                            </p>
-
-                            <div className="flex items-center gap-1">
-                                <PaginationButton
-                                    page={products.current_page - 1}
-                                    disabled={products.current_page === 1}
-                                    ariaLabel="Previous page"
-                                >
-                                    <ChevronLeft />
-                                </PaginationButton>
-
-                                {visiblePages[0] > 1 && (
-                                    <>
-                                        <PaginationButton page={1}>
-                                            1
-                                        </PaginationButton>
-                                        {visiblePages[0] > 2 && (
-                                            <span className="px-2 text-sm text-muted-foreground">
-                                                ...
-                                            </span>
-                                        )}
-                                    </>
-                                )}
-
-                                {visiblePages.map((page) => (
-                                    <PaginationButton
-                                        key={page}
-                                        page={page}
-                                        active={page === products.current_page}
-                                    >
-                                        {page}
-                                    </PaginationButton>
-                                ))}
-
-                                {visiblePages[visiblePages.length - 1] <
-                                    products.last_page && (
-                                    <>
-                                        {visiblePages[visiblePages.length - 1] <
-                                            products.last_page - 1 && (
-                                            <span className="px-2 text-sm text-muted-foreground">
-                                                ...
-                                            </span>
-                                        )}
-                                        <PaginationButton
-                                            page={products.last_page}
-                                        >
-                                            {products.last_page}
-                                        </PaginationButton>
-                                    </>
-                                )}
-
-                                <PaginationButton
-                                    page={products.current_page + 1}
-                                    disabled={
-                                        products.current_page ===
-                                        products.last_page
-                                    }
-                                    ariaLabel="Next page"
-                                >
-                                    <ChevronRight />
-                                </PaginationButton>
+                                                        <Pencil />
+                                                    </Link>
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="destructive"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        deleteProduct(product)
+                                                    }
+                                                    title="Hapus produk"
+                                                    aria-label={`Hapus ${product.name}`}
+                                                >
+                                                    <Trash2 />
+                                                </Button>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        ) : (
+                            <div className="flex flex-1 items-center justify-center px-4 py-16 text-center text-muted-foreground">
+                                Belum ada produk di kategori ini.
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </section>
                 </div>
             </div>
         </>
@@ -338,53 +806,8 @@ export default function ProductsIndex({ products }: ProductsIndexProps) {
 ProductsIndex.layout = {
     breadcrumbs: [
         {
-            title: 'Products',
+            title: 'Menu',
             href: productsIndex(),
         },
     ],
 };
-
-function PaginationButton({
-    page,
-    active = false,
-    disabled = false,
-    ariaLabel,
-    children,
-}: {
-    page: number;
-    active?: boolean;
-    disabled?: boolean;
-    ariaLabel?: string;
-    children: ReactNode;
-}) {
-    if (disabled) {
-        return (
-            <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                disabled
-                aria-label={ariaLabel}
-            >
-                {children}
-            </Button>
-        );
-    }
-
-    return (
-        <Button
-            asChild
-            variant={active ? 'default' : 'outline'}
-            size="icon"
-            aria-current={active ? 'page' : undefined}
-        >
-            <Link
-                href={productsIndex({ query: page === 1 ? {} : { page } })}
-                preserveScroll
-                aria-label={ariaLabel ?? `Page ${page}`}
-            >
-                {children}
-            </Link>
-        </Button>
-    );
-}

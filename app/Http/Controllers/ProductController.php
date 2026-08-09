@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ReorderProductsRequest;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -17,15 +19,25 @@ class ProductController extends Controller
     public function index(): Response
     {
         Gate::authorize('viewAny', Product::class);
+        Gate::authorize('viewAny', Category::class);
 
+        $categories = Category::query()
+            ->select(['id', 'name', 'description', 'sort_order'])
+            ->withCount('products')
+            ->ordered()
+            ->get()
+            ->map(fn (Category $category): array => $this->categoryPayload($category))
+            ->all();
         $products = Product::query()
             ->select(['id', 'category_id', 'name', 'description', 'price', 'image', 'is_active', 'is_available', 'sort_order', 'created_at'])
             ->with('category:id,name,description,sort_order')
             ->ordered()
-            ->paginate(10)
-            ->through(fn (Product $product): array => $this->productPayload($product));
+            ->get()
+            ->map(fn (Product $product): array => $this->productPayload($product))
+            ->all();
 
         return Inertia::render('products/index', [
+            'categories' => $categories,
             'products' => $products,
         ]);
     }
@@ -54,6 +66,7 @@ class ProductController extends Controller
     public function store(StoreProductRequest $request): RedirectResponse
     {
         $data = $this->productData($request->validated());
+        $data['sort_order'] = Product::nextSortOrderForCategory((int) $data['category_id']);
 
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('products', 'public');
@@ -69,6 +82,11 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse
     {
         $data = $this->productData($request->validated());
+        $categoryId = (int) $data['category_id'];
+
+        if ($categoryId !== $product->category_id) {
+            $data['sort_order'] = Product::nextSortOrderForCategory($categoryId);
+        }
 
         if ($request->boolean('remove_image') && $product->image) {
             Storage::disk('public')->delete($product->image);
@@ -101,6 +119,19 @@ class ProductController extends Controller
         $product->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Product deleted.')]);
+
+        return to_route('products.index');
+    }
+
+    public function reorder(ReorderProductsRequest $request): RedirectResponse
+    {
+        /** @var array{category_id: int|string, products: array<int, int>} $data */
+        $data = $request->validated();
+        $categoryId = (int) $data['category_id'];
+
+        DB::transaction(fn () => $this->updateProductOrder($categoryId, $data['products']));
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Urutan produk diperbarui.')]);
 
         return to_route('products.index');
     }
@@ -144,6 +175,20 @@ class ProductController extends Controller
     }
 
     /**
+     * @return array{id: int, name: string, description: string|null, sort_order: int, products_count: int}
+     */
+    private function categoryPayload(Category $category): array
+    {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'description' => $category->description,
+            'sort_order' => $category->sort_order,
+            'products_count' => $category->products_count,
+        ];
+    }
+
+    /**
      * @return array<int, array{id: int, name: string, description: string|null, sort_order: int}>
      */
     private function categoryOptions(): array
@@ -158,6 +203,19 @@ class ProductController extends Controller
                 'sort_order' => $category->sort_order,
             ])
             ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $productIds
+     */
+    private function updateProductOrder(int $categoryId, array $productIds): void
+    {
+        foreach ($productIds as $index => $productId) {
+            Product::query()
+                ->whereKey($productId)
+                ->where('category_id', $categoryId)
+                ->update(['sort_order' => $index + 1]);
+        }
     }
 
     /**

@@ -17,7 +17,6 @@ test('admin can create a product', function () {
             'category_id' => $category->id,
             'price' => 32000,
             'is_available' => true,
-            'sort_order' => 1,
         ]);
 
     $response

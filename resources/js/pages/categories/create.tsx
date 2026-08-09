@@ -1,9 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { CategoryForm } from '@/pages/categories/category-form';
-import {
-    create as newCategory,
-    index as categoriesIndex,
-} from '@/routes/categories';
+import { create as newCategory } from '@/routes/categories';
+import { index as productsIndex } from '@/routes/products';
 
 export default function CategoriesCreate() {
     return (
@@ -27,8 +25,8 @@ export default function CategoriesCreate() {
 CategoriesCreate.layout = {
     breadcrumbs: [
         {
-            title: 'Categories',
-            href: categoriesIndex(),
+            title: 'Menu',
+            href: productsIndex(),
         },
         {
             title: 'New Category',

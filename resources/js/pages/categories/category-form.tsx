@@ -9,13 +9,12 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { index as categoriesIndex } from '@/routes/categories';
+import { index as productsIndex } from '@/routes/products';
 import type { CategoryWithProductCount } from '@/types';
 
 type CategoryFormData = {
     name: string;
     description: string;
-    sort_order: string;
 };
 
 type CategoryFormProps = {
@@ -29,7 +28,6 @@ function categoryDefaults(
     return {
         name: category?.name ?? '',
         description: category?.description ?? '',
-        sort_order: String(category?.sort_order ?? ''),
     };
 }
 
@@ -84,27 +82,11 @@ export function CategoryForm({ category, submitLabel }: CategoryFormProps) {
                     />
                     <InputError message={errors.description} />
                 </div>
-
-                <div className="grid gap-2">
-                    <Label htmlFor="sort_order">Sort order</Label>
-                    <Input
-                        id="sort_order"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={data.sort_order}
-                        onChange={(event) =>
-                            setData('sort_order', event.target.value)
-                        }
-                        aria-invalid={Boolean(errors.sort_order)}
-                    />
-                    <InputError message={errors.sort_order} />
-                </div>
             </div>
 
             <div className="flex flex-col gap-3 border-t bg-muted/20 px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
                 <Button variant="outline" asChild>
-                    <Link href={categoriesIndex()}>
+                    <Link href={productsIndex()}>
                         <ArrowLeft />
                         Back
                     </Link>

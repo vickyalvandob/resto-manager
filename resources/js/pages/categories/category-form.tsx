@@ -15,6 +15,7 @@ import type { CategoryWithProductCount } from '@/types';
 type CategoryFormData = {
     name: string;
     description: string;
+    sort_order: string;
 };
 
 type CategoryFormProps = {
@@ -28,6 +29,7 @@ function categoryDefaults(
     return {
         name: category?.name ?? '',
         description: category?.description ?? '',
+        sort_order: String(category?.sort_order ?? ''),
     };
 }
 
@@ -81,6 +83,22 @@ export function CategoryForm({ category, submitLabel }: CategoryFormProps) {
                         className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
                     />
                     <InputError message={errors.description} />
+                </div>
+
+                <div className="grid gap-2">
+                    <Label htmlFor="sort_order">Sort order</Label>
+                    <Input
+                        id="sort_order"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={data.sort_order}
+                        onChange={(event) =>
+                            setData('sort_order', event.target.value)
+                        }
+                        aria-invalid={Boolean(errors.sort_order)}
+                    />
+                    <InputError message={errors.sort_order} />
                 </div>
             </div>
 

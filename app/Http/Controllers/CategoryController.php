@@ -40,10 +40,10 @@ class CategoryController extends Controller
 
     public function store(StoreCategoryRequest $request): RedirectResponse
     {
-        Category::create([
-            ...$request->validated(),
-            'sort_order' => Category::nextSortOrder(),
-        ]);
+        $data = $request->validated();
+        $data['sort_order'] ??= Category::nextSortOrder();
+
+        Category::create($data);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category created.')]);
 

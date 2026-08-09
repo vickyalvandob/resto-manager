@@ -18,10 +18,10 @@ type ProductFormData = {
     category_id: string;
     description: string;
     price: string;
-    stock: string;
+    sort_order: string;
     image: File | null;
     remove_image: boolean;
-    is_active: boolean;
+    is_available: boolean;
 };
 
 type ProductFormProps = {
@@ -35,13 +35,13 @@ const emptyProductForm = (): ProductFormData => ({
     category_id: '',
     description: '',
     price: '',
-    stock: '0',
+    sort_order: '0',
     image: null,
     remove_image: false,
-    is_active: true,
+    is_available: true,
 });
 
-function formatPriceForInput(value: string): string {
+function formatPriceForInput(value: number): string {
     const amount = Number(value);
 
     return Number.isFinite(amount) ? String(amount) : '';
@@ -57,10 +57,10 @@ function productDefaults(product?: Product): ProductFormData {
         category_id: String(product.category_id),
         description: product.description ?? '',
         price: formatPriceForInput(product.price),
-        stock: String(product.stock),
+        sort_order: String(product.sort_order),
         image: null,
         remove_image: false,
-        is_active: product.is_active,
+        is_available: product.is_available,
     };
 }
 
@@ -134,7 +134,7 @@ export function ProductForm({
                         id="price"
                         type="number"
                         min="0"
-                        step="0.01"
+                        step="1"
                         value={data.price}
                         onChange={(event) =>
                             setData('price', event.target.value)
@@ -146,20 +146,19 @@ export function ProductForm({
                 </div>
 
                 <div className="grid gap-2">
-                    <Label htmlFor="stock">Stock</Label>
+                    <Label htmlFor="sort_order">Sort order</Label>
                     <Input
-                        id="stock"
+                        id="sort_order"
                         type="number"
                         min="0"
                         step="1"
-                        value={data.stock}
+                        value={data.sort_order}
                         onChange={(event) =>
-                            setData('stock', event.target.value)
+                            setData('sort_order', event.target.value)
                         }
-                        required
-                        aria-invalid={Boolean(errors.stock)}
+                        aria-invalid={Boolean(errors.sort_order)}
                     />
-                    <InputError message={errors.stock} />
+                    <InputError message={errors.sort_order} />
                 </div>
 
                 <div className="grid gap-2 md:col-span-2">
@@ -213,12 +212,12 @@ export function ProductForm({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <label className="flex items-center gap-2 text-sm">
                         <Checkbox
-                            checked={data.is_active}
+                            checked={data.is_available}
                             onCheckedChange={(checked) =>
-                                setData('is_active', checked === true)
+                                setData('is_available', checked === true)
                             }
                         />
-                        Active product
+                        Tersedia
                     </label>
 
                     {product?.image_url && (

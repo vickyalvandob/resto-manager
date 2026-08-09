@@ -25,6 +25,7 @@ class StoreCategoryRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique((new Category)->getTable(), 'name')],
             'description' => ['nullable', 'string', 'max:255'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
         ];
     }
 

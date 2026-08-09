@@ -23,9 +23,18 @@ class ProductFactory extends Factory
             'name' => fake()->words(3, true),
             'description' => fake()->sentence(),
             'price' => fake()->numberBetween(10_000, 250_000),
-            'stock' => fake()->numberBetween(0, 100),
             'image' => null,
             'is_active' => true,
+            'is_available' => true,
+            'sort_order' => fake()->numberBetween(0, 50),
         ];
+    }
+
+    public function unavailable(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
+            'is_available' => false,
+        ]);
     }
 }

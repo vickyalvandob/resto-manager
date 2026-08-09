@@ -1,5 +1,13 @@
-import { Link } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid, Package, Tags } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    BarChart3,
+    ClipboardList,
+    LayoutGrid,
+    Package,
+    Settings,
+    ShoppingCart,
+    Tags,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -15,14 +23,28 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as categoriesIndex } from '@/routes/categories';
+import { index as ordersIndex } from '@/routes/orders';
+import { index as posIndex } from '@/routes/pos';
 import { index as productsIndex } from '@/routes/products';
+import { index as reportsIndex } from '@/routes/reports';
+import { index as settingsIndex } from '@/routes/settings';
 import type { NavItem } from '@/types';
 
-const mainNavItems: NavItem[] = [
+const adminNavItems: NavItem[] = [
     {
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'POS',
+        href: posIndex(),
+        icon: ShoppingCart,
+    },
+    {
+        title: 'Orders',
+        href: ordersIndex(),
+        icon: ClipboardList,
     },
     {
         title: 'Categories',
@@ -34,22 +56,38 @@ const mainNavItems: NavItem[] = [
         href: productsIndex(),
         icon: Package,
     },
+    {
+        title: 'Reports',
+        href: reportsIndex(),
+        icon: BarChart3,
+    },
+    {
+        title: 'Settings',
+        href: settingsIndex(),
+        icon: Settings,
+    },
 ];
 
-const footerNavItems: NavItem[] = [
+const cashierNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: FolderGit2,
+        title: 'POS',
+        href: posIndex(),
+        icon: ShoppingCart,
     },
     {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
+        title: 'Orders',
+        href: ordersIndex(),
+        icon: ClipboardList,
     },
 ];
+
+const footerNavItems: NavItem[] = [];
 
 export function AppSidebar() {
+    const { auth } = usePage().props;
+    const mainNavItems =
+        auth.user?.role === 'cashier' ? cashierNavItems : adminNavItems;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>

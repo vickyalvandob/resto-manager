@@ -19,9 +19,9 @@ class ProductController extends Controller
         Gate::authorize('viewAny', Product::class);
 
         $products = Product::query()
-            ->select(['id', 'category_id', 'name', 'description', 'price', 'stock', 'image', 'is_active', 'created_at'])
+            ->select(['id', 'category_id', 'name', 'description', 'price', 'image', 'is_active', 'is_available', 'sort_order', 'created_at'])
             ->with('category:id,name,description,sort_order')
-            ->latest()
+            ->ordered()
             ->paginate(10)
             ->through(fn (Product $product): array => $this->productPayload($product));
 
@@ -105,6 +105,25 @@ class ProductController extends Controller
         return to_route('products.index');
     }
 
+    public function toggleAvailability(Product $product): RedirectResponse
+    {
+        Gate::authorize('update', $product);
+
+        $isAvailable = ! $product->is_available;
+
+        $product->update([
+            'is_available' => $isAvailable,
+            'is_active' => $isAvailable,
+        ]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $isAvailable ? __('Produk tersedia.') : __('Produk tidak tersedia.'),
+        ]);
+
+        return to_route('products.index');
+    }
+
     /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -112,6 +131,14 @@ class ProductController extends Controller
     private function productData(array $data): array
     {
         unset($data['remove_image']);
+
+        if (array_key_exists('is_available', $data)) {
+            $data['is_active'] = $data['is_available'];
+        }
+
+        if (! array_key_exists('is_available', $data) && array_key_exists('is_active', $data)) {
+            $data['is_available'] = $data['is_active'];
+        }
 
         return $data;
     }
@@ -134,7 +161,7 @@ class ProductController extends Controller
     }
 
     /**
-     * @return array{id: int, category_id: int, name: string, description: string|null, price: string, stock: int, image: string|null, image_url: string|null, is_active: bool, category: array{id: int, name: string, description: string|null, sort_order: int}}
+     * @return array{id: int, category_id: int, name: string, description: string|null, price: int, image: string|null, image_url: string|null, is_active: bool, is_available: bool, sort_order: int, category: array{id: int, name: string, description: string|null, sort_order: int}}
      */
     private function productPayload(Product $product): array
     {
@@ -143,11 +170,12 @@ class ProductController extends Controller
             'category_id' => $product->category_id,
             'name' => $product->name,
             'description' => $product->description,
-            'price' => number_format((float) $product->price, 2, '.', ''),
-            'stock' => $product->stock,
+            'price' => (int) $product->price,
             'image' => $product->image,
             'image_url' => $product->image ? Storage::url($product->image) : null,
             'is_active' => $product->is_active,
+            'is_available' => $product->is_available,
+            'sort_order' => $product->sort_order,
             'category' => [
                 'id' => $product->category->id,
                 'name' => $product->category->name,

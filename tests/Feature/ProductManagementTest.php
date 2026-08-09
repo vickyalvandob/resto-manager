@@ -130,7 +130,6 @@ test('authenticated users can create products with an existing category', functi
             'category_id' => $category->id,
             'description' => 'House blend with milk.',
             'price' => 18000,
-            'stock' => 25,
             'image' => $image,
             'is_active' => true,
         ]);
@@ -143,8 +142,7 @@ test('authenticated users can create products with an existing category', functi
 
     expect($product->category_id)->toBe($category->id)
         ->and($product->category->name)->toBe('Signature Drinks')
-        ->and($product->price)->toBe('18000.00')
-        ->and($product->stock)->toBe(25)
+        ->and($product->price)->toBe(18000)
         ->and($product->is_active)->toBeTrue()
         ->and($product->image)->not->toBeNull();
 
@@ -175,7 +173,6 @@ test('authenticated users can update products and replace images', function () {
             'category_id' => $newCategory->id,
             'description' => 'Updated description.',
             'price' => 32000,
-            'stock' => 0,
             'image' => UploadedFile::fake()->image('updated-product.png'),
             'is_active' => false,
         ]);
@@ -188,8 +185,7 @@ test('authenticated users can update products and replace images', function () {
 
     expect($product->name)->toBe('Updated Product')
         ->and($product->category_id)->toBe($newCategory->id)
-        ->and($product->price)->toBe('32000.00')
-        ->and($product->stock)->toBe(0)
+        ->and($product->price)->toBe(32000)
         ->and($product->is_active)->toBeFalse()
         ->and($product->image)->not->toBe('products/old-product.jpg');
 
@@ -215,7 +211,6 @@ test('authenticated users can remove product images', function () {
             'category_id' => $product->category_id,
             'description' => $product->description,
             'price' => $product->price,
-            'stock' => $product->stock,
             'remove_image' => true,
             'is_active' => $product->is_active,
         ]);
@@ -259,13 +254,11 @@ test('product validation requires product details', function () {
         ->post(route('products.store'), [
             'name' => '',
             'price' => -1,
-            'stock' => -1,
         ]);
 
     $response->assertSessionHasErrors([
         'name',
         'category_id',
         'price',
-        'stock',
     ]);
 });

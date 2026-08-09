@@ -2,6 +2,8 @@ import { Head, Link, router } from '@inertiajs/react';
 import {
     ChevronLeft,
     ChevronRight,
+    Eye,
+    EyeOff,
     ImageIcon,
     Pencil,
     Plus,
@@ -12,27 +14,17 @@ import {
     destroy as destroyProduct,
     edit as editProduct,
     create as newProduct,
+    toggleAvailability,
 } from '@/actions/App/Http/Controllers/ProductController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { formatRupiah } from '@/lib/currency';
 import { index as productsIndex } from '@/routes/products';
 import type { PaginatedData, Product } from '@/types';
 
 type ProductsIndexProps = {
     products: PaginatedData<Product>;
 };
-
-const currencyFormatter = new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    maximumFractionDigits: 0,
-});
-
-function formatCurrency(value: string | number): string {
-    const amount = Number(value);
-
-    return currencyFormatter.format(Number.isFinite(amount) ? amount : 0);
-}
 
 function getVisiblePages(currentPage: number, lastPage: number): number[] {
     const start = Math.max(1, currentPage - 2);
@@ -55,6 +47,14 @@ export default function ProductsIndex({ products }: ProductsIndexProps) {
         router.delete(destroyProduct(product.id), {
             preserveScroll: true,
         });
+    }
+
+    function toggleProduct(product: Product): void {
+        router.put(
+            toggleAvailability(product.id),
+            {},
+            { preserveScroll: true },
+        );
     }
 
     return (
@@ -90,10 +90,10 @@ export default function ProductsIndex({ products }: ProductsIndexProps) {
                                     </th>
                                     <th className="px-4 py-3">Price</th>
                                     <th className="hidden px-4 py-3 sm:table-cell">
-                                        Stock
+                                        Order
                                     </th>
                                     <th className="hidden px-4 py-3 lg:table-cell">
-                                        Status
+                                        POS
                                     </th>
                                     <th className="w-28 px-4 py-3 text-right">
                                         Actions
@@ -135,20 +135,22 @@ export default function ProductsIndex({ products }: ProductsIndexProps) {
                                                                 }
                                                             </span>
                                                             <span className="sm:hidden">
-                                                                Stock{' '}
-                                                                {product.stock}
+                                                                Order{' '}
+                                                                {
+                                                                    product.sort_order
+                                                                }
                                                             </span>
                                                             <Badge
                                                                 variant={
-                                                                    product.is_active
+                                                                    product.is_available
                                                                         ? 'secondary'
                                                                         : 'outline'
                                                                 }
                                                                 className="lg:hidden"
                                                             >
-                                                                {product.is_active
-                                                                    ? 'Active'
-                                                                    : 'Inactive'}
+                                                                {product.is_available
+                                                                    ? 'Tersedia'
+                                                                    : 'Tidak tersedia'}
                                                             </Badge>
                                                         </div>
                                                         {product.description && (
@@ -165,26 +167,52 @@ export default function ProductsIndex({ products }: ProductsIndexProps) {
                                                 {product.category.name}
                                             </td>
                                             <td className="px-4 py-4 font-medium whitespace-nowrap">
-                                                {formatCurrency(product.price)}
+                                                {formatRupiah(product.price)}
                                             </td>
                                             <td className="hidden px-4 py-4 sm:table-cell">
-                                                {product.stock}
+                                                {product.sort_order}
                                             </td>
                                             <td className="hidden px-4 py-4 lg:table-cell">
                                                 <Badge
                                                     variant={
-                                                        product.is_active
+                                                        product.is_available
                                                             ? 'secondary'
                                                             : 'outline'
                                                     }
                                                 >
-                                                    {product.is_active
-                                                        ? 'Active'
-                                                        : 'Inactive'}
+                                                    {product.is_available
+                                                        ? 'Tersedia'
+                                                        : 'Tidak tersedia'}
                                                 </Badge>
                                             </td>
                                             <td className="px-4 py-4">
                                                 <div className="flex justify-end gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            toggleProduct(
+                                                                product,
+                                                            )
+                                                        }
+                                                        title={
+                                                            product.is_available
+                                                                ? 'Tandai tidak tersedia'
+                                                                : 'Tandai tersedia'
+                                                        }
+                                                        aria-label={
+                                                            product.is_available
+                                                                ? `Tandai ${product.name} tidak tersedia`
+                                                                : `Tandai ${product.name} tersedia`
+                                                        }
+                                                    >
+                                                        {product.is_available ? (
+                                                            <EyeOff />
+                                                        ) : (
+                                                            <Eye />
+                                                        )}
+                                                    </Button>
                                                     <Button
                                                         asChild
                                                         variant="outline"

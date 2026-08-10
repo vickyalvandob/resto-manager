@@ -60,6 +60,8 @@ type CartItem = {
 
 type CheckoutErrors = Record<string, string>;
 
+type CheckoutMode = 'save' | 'pay';
+
 type Option<T extends string> = {
     value: T;
     label: string;
@@ -70,13 +72,9 @@ type CartPanelProps = {
     cart: CartItem[];
     cartItemsCount: number;
     cartTotal: number;
-    customerName: string;
-    orderType: OrderType;
     errors: CheckoutErrors;
     isSubmitting: boolean;
     className?: string;
-    onCustomerNameChange: (name: string) => void;
-    onOrderTypeChange: (orderType: OrderType) => void;
     onQtyChange: (productId: number, qty: number) => void;
     onNoteChange: (productId: number, note: string) => void;
     onReset: () => void;
@@ -131,13 +129,9 @@ function CartPanel({
     cart,
     cartItemsCount,
     cartTotal,
-    customerName,
-    orderType,
     errors,
     isSubmitting,
     className,
-    onCustomerNameChange,
-    onOrderTypeChange,
     onQtyChange,
     onNoteChange,
     onReset,
@@ -160,48 +154,6 @@ function CartPanel({
                 </div>
                 <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
                     <ShoppingCart className="size-5" />
-                </div>
-            </div>
-
-            <div className="grid shrink-0 gap-2 border-b p-2 sm:p-3">
-                <div className="grid gap-1.5">
-                    <Label htmlFor="pos_customer_name">Pelanggan</Label>
-                    <Input
-                        id="pos_customer_name"
-                        value={customerName}
-                        onChange={(event) =>
-                            onCustomerNameChange(event.target.value)
-                        }
-                        placeholder="Nama pelanggan"
-                        autoComplete="off"
-                        className="h-9"
-                    />
-                    <InputError message={errors.customer_name} />
-                </div>
-
-                <div className="grid gap-1.5">
-                    <Label>Tipe order</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                        {orderTypeOptions.map(
-                            ({ value, label, icon: Icon }) => (
-                                <Button
-                                    key={value}
-                                    type="button"
-                                    variant={
-                                        orderType === value
-                                            ? 'default'
-                                            : 'outline'
-                                    }
-                                    className="h-9"
-                                    onClick={() => onOrderTypeChange(value)}
-                                >
-                                    <Icon />
-                                    {label}
-                                </Button>
-                            ),
-                        )}
-                    </div>
-                    <InputError message={errors.order_type} />
                 </div>
             </div>
 
@@ -375,6 +327,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
     const [activeCategory, setActiveCategory] = useState<number | 'all'>('all');
     const [cart, setCart] = useState<CartItem[]>([]);
     const [paymentOpen, setPaymentOpen] = useState(false);
+    const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('pay');
     const [customerName, setCustomerName] = useState('');
     const [orderType, setOrderType] = useState<OrderType>('dine_in');
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -429,9 +382,11 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
             setCart([]);
             setPaymentOpen(false);
+            setCheckoutMode('pay');
             setSuccessOrder(order);
             setPaidAmount('');
             setCustomerName('');
+            setOrderType('dine_in');
             setErrors({});
         });
     }, []);
@@ -533,106 +488,104 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
         });
     }
 
+    function openCheckout(mode: CheckoutMode): void {
+        if (cart.length === 0 || isSubmitting) {
+            return;
+        }
+
+        setCheckoutMode(mode);
+        setErrors({});
+        setPaymentOpen(true);
+    }
+
+    function confirmCheckout(): void {
+        if (checkoutMode === 'save') {
+            saveOrder();
+
+            return;
+        }
+
+        submitPayment();
+    }
+
     function cartQuantity(productId: number): number {
         return cart.find((item) => item.product_id === productId)?.qty ?? 0;
     }
+
+    const isCashPaymentIncomplete =
+        checkoutMode === 'pay' &&
+        paymentMethod === 'cash' &&
+        Number(paidAmount || 0) < cartTotal;
 
     return (
         <>
             <Head title="POS" />
 
             <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col gap-2 overflow-hidden bg-muted/30 p-2 sm:gap-3 sm:p-3 lg:p-4">
-                <section className="grid shrink-0 gap-2 rounded-lg border bg-background p-2 sm:p-3">
-                    <div className="flex flex-col justify-between gap-2 md:flex-row md:items-center">
-                        <div className="min-w-0">
-                            <h1 className="text-xl font-semibold">POS</h1>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                                <Badge variant="outline">
-                                    {products.length} produk
-                                </Badge>
-                                <Badge variant="outline">
-                                    {cartItemLabel(cartItemsCount)}
-                                </Badge>
-                                <Badge variant="outline">
-                                    {formatRupiah(cartTotal)}
-                                </Badge>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid gap-2 lg:grid-cols-[minmax(18rem,1fr)_minmax(0,2fr)] lg:items-center">
-                        <div className="relative">
-                            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                                value={search}
-                                onChange={(event) =>
-                                    setSearch(event.target.value)
-                                }
-                                placeholder="Cari produk atau kategori"
-                                className="h-10 pl-9"
-                            />
-                        </div>
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                            <Button
-                                type="button"
-                                variant={
-                                    activeCategory === 'all'
-                                        ? 'default'
-                                        : 'outline'
-                                }
-                                className="h-9 shrink-0"
-                                onClick={() => setActiveCategory('all')}
-                            >
-                                Semua
-                                <Badge
-                                    variant={
-                                        activeCategory === 'all'
-                                            ? 'secondary'
-                                            : 'outline'
-                                    }
-                                >
-                                    {products.length}
-                                </Badge>
-                            </Button>
-                            {categories.map((category) => (
+                <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)] gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_27rem]">
+                    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
+                        <div className="grid shrink-0 gap-2 border-b p-2 sm:p-3">
+                            <div className="flex gap-2 overflow-x-auto pb-1">
                                 <Button
-                                    key={category.id}
                                     type="button"
                                     variant={
-                                        activeCategory === category.id
+                                        activeCategory === 'all'
                                             ? 'default'
                                             : 'outline'
                                     }
                                     className="h-9 shrink-0"
-                                    onClick={() =>
-                                        setActiveCategory(category.id)
-                                    }
+                                    onClick={() => setActiveCategory('all')}
                                 >
-                                    {category.name}
+                                    Semua
                                     <Badge
                                         variant={
-                                            activeCategory === category.id
+                                            activeCategory === 'all'
                                                 ? 'secondary'
                                                 : 'outline'
                                         }
                                     >
-                                        {productCountByCategory[category.id] ??
-                                            0}
+                                        {products.length}
                                     </Badge>
                                 </Button>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)] gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_27rem]">
-                    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
-                        <div className="flex shrink-0 items-center justify-between gap-3 border-b p-2 sm:p-3">
-                            <div className="min-w-0">
-                                <h2 className="truncate font-semibold">Menu</h2>
-                                <p className="text-sm text-muted-foreground">
-                                    {filteredProducts.length} hasil
-                                </p>
+                                {categories.map((category) => (
+                                    <Button
+                                        key={category.id}
+                                        type="button"
+                                        variant={
+                                            activeCategory === category.id
+                                                ? 'default'
+                                                : 'outline'
+                                        }
+                                        className="h-9 shrink-0"
+                                        onClick={() =>
+                                            setActiveCategory(category.id)
+                                        }
+                                    >
+                                        {category.name}
+                                        <Badge
+                                            variant={
+                                                activeCategory === category.id
+                                                    ? 'secondary'
+                                                    : 'outline'
+                                            }
+                                        >
+                                            {productCountByCategory[
+                                                category.id
+                                            ] ?? 0}
+                                        </Badge>
+                                    </Button>
+                                ))}
+                            </div>
+                            <div className="relative">
+                                <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    value={search}
+                                    onChange={(event) =>
+                                        setSearch(event.target.value)
+                                    }
+                                    placeholder="Cari produk atau kategori"
+                                    className="h-10 pl-9"
+                                />
                             </div>
                         </div>
 
@@ -705,87 +658,83 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         cart={cart}
                         cartItemsCount={cartItemsCount}
                         cartTotal={cartTotal}
-                        customerName={customerName}
-                        orderType={orderType}
                         errors={errors}
                         isSubmitting={isSubmitting}
                         className="min-h-0"
-                        onCustomerNameChange={setCustomerName}
-                        onOrderTypeChange={setOrderType}
                         onQtyChange={changeQty}
                         onNoteChange={changeNote}
                         onReset={resetCart}
-                        onSave={saveOrder}
-                        onCheckout={() => setPaymentOpen(true)}
+                        onSave={() => openCheckout('save')}
+                        onCheckout={() => openCheckout('pay')}
                     />
                 </div>
             </div>
 
             <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-                <DialogContent className="sm:max-w-2xl">
+                <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>Pembayaran</DialogTitle>
+                        <DialogTitle>
+                            {checkoutMode === 'save'
+                                ? 'Detail order'
+                                : 'Pembayaran'}
+                        </DialogTitle>
                         <DialogDescription>
-                            Total tagihan {formatRupiah(cartTotal)}
+                            {checkoutMode === 'save'
+                                ? 'Lengkapi detail sebelum order disimpan.'
+                                : `Total tagihan ${formatRupiah(cartTotal)}`}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="grid gap-4">
-                        <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
-                            <div>
-                                <div className="text-sm text-muted-foreground">
-                                    Pelanggan
-                                </div>
-                                <div className="mt-1 font-medium">
-                                    {customerName || '-'}
-                                </div>
+                        <div className="grid gap-3">
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="customer_name">Pelanggan</Label>
+                                <Input
+                                    id="customer_name"
+                                    value={customerName}
+                                    onChange={(event) =>
+                                        setCustomerName(event.target.value)
+                                    }
+                                    placeholder="Nama pelanggan (opsional)"
+                                    autoComplete="off"
+                                    className="h-10"
+                                />
+                                <InputError message={errors.customer_name} />
                             </div>
-                            <div>
-                                <div className="text-sm text-muted-foreground">
-                                    Tipe order
-                                </div>
-                                <div className="mt-1 font-medium">
-                                    {orderTypeLabels[orderType]}
-                                </div>
-                            </div>
-                            <div>
-                                <div className="text-sm text-muted-foreground">
-                                    Item
-                                </div>
-                                <div className="mt-1 font-medium">
-                                    {cartItemLabel(cartItemsCount)}
-                                </div>
-                            </div>
-                        </div>
 
-                        <div className="grid gap-2">
-                            <Label>Metode pembayaran</Label>
-                            <div className="grid gap-2 sm:grid-cols-3">
-                                {paymentOptions.map(
-                                    ({ value, label, icon: Icon }) => (
-                                        <Button
-                                            key={value}
-                                            type="button"
-                                            variant={
-                                                paymentMethod === value
-                                                    ? 'default'
-                                                    : 'outline'
-                                            }
-                                            className="h-12"
-                                            onClick={() =>
-                                                setPaymentMethod(value)
-                                            }
-                                        >
-                                            <Icon />
-                                            {label}
-                                        </Button>
-                                    ),
-                                )}
+                            <div className="grid gap-1.5">
+                                <Label>Tipe order</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {orderTypeOptions.map(
+                                        ({ value, label, icon: Icon }) => (
+                                            <Button
+                                                key={value}
+                                                type="button"
+                                                variant={
+                                                    orderType === value
+                                                        ? 'default'
+                                                        : 'outline'
+                                                }
+                                                className="h-10"
+                                                onClick={() =>
+                                                    setOrderType(value)
+                                                }
+                                            >
+                                                <Icon />
+                                                {label}
+                                            </Button>
+                                        ),
+                                    )}
+                                </div>
+                                <InputError message={errors.order_type} />
                             </div>
-                            <InputError message={errors.payment_method} />
                         </div>
 
                         <div className="grid gap-2 rounded-lg bg-muted/60 p-3">
+                            <div className="flex justify-between text-sm">
+                                <span>Item</span>
+                                <span>{cartItemLabel(cartItemsCount)}</span>
+                            </div>
                             <div className="flex justify-between text-sm">
                                 <span>Subtotal</span>
                                 <span>{formatRupiah(cartTotal)}</span>
@@ -796,57 +745,101 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                             </div>
                         </div>
 
-                        {paymentMethod === 'cash' ? (
-                            <div className="grid gap-3">
+                        {checkoutMode === 'pay' && (
+                            <>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="paid_amount">
-                                        Uang diterima
-                                    </Label>
-                                    <Input
-                                        id="paid_amount"
-                                        type="number"
-                                        inputMode="numeric"
-                                        min="0"
-                                        step="1000"
-                                        value={paidAmount}
-                                        onChange={(event) =>
-                                            setPaidAmount(event.target.value)
-                                        }
-                                        className={cn(
-                                            Number(paidAmount || 0) <
-                                                cartTotal &&
-                                                'border-destructive',
+                                    <Label>Metode pembayaran</Label>
+                                    <div className="grid gap-2 sm:grid-cols-3">
+                                        {paymentOptions.map(
+                                            ({ value, label, icon: Icon }) => (
+                                                <Button
+                                                    key={value}
+                                                    type="button"
+                                                    variant={
+                                                        paymentMethod === value
+                                                            ? 'default'
+                                                            : 'outline'
+                                                    }
+                                                    className="h-11"
+                                                    onClick={() =>
+                                                        setPaymentMethod(value)
+                                                    }
+                                                >
+                                                    <Icon />
+                                                    {label}
+                                                </Button>
+                                            ),
                                         )}
+                                    </div>
+                                    <InputError
+                                        message={errors.payment_method}
                                     />
-                                    <InputError message={errors.paid_amount} />
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {suggestedCashAmounts.map((amount) => (
-                                        <Button
-                                            key={amount}
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                setPaidAmount(String(amount))
-                                            }
-                                        >
-                                            {amount === cartTotal
-                                                ? 'Uang pas'
-                                                : formatRupiah(amount)}
-                                        </Button>
-                                    ))}
-                                </div>
-                                <div className="flex justify-between rounded-md bg-background px-3 py-2 text-sm font-medium">
-                                    <span>Kembalian</span>
-                                    <span>{formatRupiah(changeAmount)}</span>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
-                                {paymentLabels[paymentMethod]} akan dicatat
-                                lunas saat konfirmasi.
-                            </div>
+
+                                {paymentMethod === 'cash' ? (
+                                    <div className="grid gap-3">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="paid_amount">
+                                                Uang diterima
+                                            </Label>
+                                            <Input
+                                                id="paid_amount"
+                                                type="number"
+                                                inputMode="numeric"
+                                                min="0"
+                                                step="1000"
+                                                value={paidAmount}
+                                                onChange={(event) =>
+                                                    setPaidAmount(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                className={cn(
+                                                    isCashPaymentIncomplete &&
+                                                        'border-destructive',
+                                                )}
+                                            />
+                                            <InputError
+                                                message={errors.paid_amount}
+                                            />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {suggestedCashAmounts.map(
+                                                (amount) => (
+                                                    <Button
+                                                        key={amount}
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setPaidAmount(
+                                                                String(amount),
+                                                            )
+                                                        }
+                                                    >
+                                                        {amount === cartTotal
+                                                            ? 'Uang pas'
+                                                            : formatRupiah(
+                                                                  amount,
+                                                              )}
+                                                    </Button>
+                                                ),
+                                            )}
+                                        </div>
+                                        <div className="flex justify-between rounded-md bg-background px-3 py-2 text-sm font-medium">
+                                            <span>Kembalian</span>
+                                            <span>
+                                                {formatRupiah(changeAmount)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                                        {paymentLabels[paymentMethod]} akan
+                                        dicatat lunas saat konfirmasi.
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
 
@@ -861,15 +854,18 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         </Button>
                         <Button
                             type="button"
-                            onClick={submitPayment}
+                            onClick={confirmCheckout}
                             disabled={
                                 isSubmitting ||
                                 cart.length === 0 ||
-                                (paymentMethod === 'cash' &&
-                                    Number(paidAmount || 0) < cartTotal)
+                                isCashPaymentIncomplete
                             }
                         >
-                            {isSubmitting ? 'Memproses...' : 'Konfirmasi'}
+                            {isSubmitting
+                                ? 'Memproses...'
+                                : checkoutMode === 'save'
+                                  ? 'Simpan order'
+                                  : 'Konfirmasi'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

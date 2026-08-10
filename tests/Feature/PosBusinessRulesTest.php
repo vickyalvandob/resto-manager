@@ -71,7 +71,27 @@ test('pos page keeps menu and cart in compact scroll regions', function () {
         ->toContain('overflow-y-auto')
         ->toContain('sm:grid-cols-3')
         ->toContain('xl:grid-cols-4')
-        ->toContain('2xl:grid-cols-5');
+        ->toContain('2xl:grid-cols-5')
+        ->toContain('className="grid shrink-0 gap-2 border-b p-2 sm:p-3"')
+        ->toContain("type CheckoutMode = 'save' | 'pay'")
+        ->toContain('id="customer_name"')
+        ->toContain("openCheckout('save')")
+        ->toContain("openCheckout('pay')");
+
+    expect($posPage)
+        ->not->toContain('id="pos_customer_name"')
+        ->not->toContain('<h1 className="text-xl font-semibold">POS</h1>')
+        ->not->toContain('<h2 className="truncate font-semibold">Menu</h2>')
+        ->not->toContain('{filteredProducts.length} hasil')
+        ->not->toContain('xl:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1fr)]')
+        ->not->toContain('className="grid shrink-0 gap-2 rounded-lg border bg-background p-2 sm:p-3"');
+
+    $categoryFilterPosition = strpos($posPage, 'className="flex gap-2 overflow-x-auto pb-1"');
+    $searchInputPosition = strpos($posPage, 'placeholder="Cari produk atau kategori"');
+
+    expect($categoryFilterPosition)
+        ->not->toBeFalse()
+        ->toBeLessThan($searchInputPosition);
 
     expect(substr_count($posPage, 'scroll-region=""'))->toBeGreaterThanOrEqual(2);
 });

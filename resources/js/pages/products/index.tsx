@@ -25,6 +25,17 @@ import {
     reorder as reorderProducts,
     toggleAvailability,
 } from '@/actions/App/Http/Controllers/ProductController';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatRupiah } from '@/lib/currency';
@@ -107,6 +118,102 @@ function dropPlacementFromEvent(event: DragEvent<HTMLElement>): DropPlacement {
     const bounds = event.currentTarget.getBoundingClientRect();
 
     return event.clientY > bounds.top + bounds.height / 2 ? 'after' : 'before';
+}
+
+type DeleteCategoryDialogProps = {
+    category: CategoryWithProductCount;
+    onDelete: (category: CategoryWithProductCount) => void;
+};
+
+function DeleteCategoryDialog({
+    category,
+    onDelete,
+}: DeleteCategoryDialogProps) {
+    const hasProducts = category.products_count > 0;
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title="Hapus kategori"
+                    aria-label={`Hapus ${category.name}`}
+                >
+                    <Trash2 />
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        {hasProducts
+                            ? 'Kategori masih berisi produk'
+                            : 'Hapus kategori?'}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {hasProducts
+                            ? `Pindahkan atau hapus ${productCount(category.products_count)} di ${category.name} dulu.`
+                            : `Kategori ${category.name} akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.`}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>
+                        {hasProducts ? 'Mengerti' : 'Batal'}
+                    </AlertDialogCancel>
+                    {!hasProducts && (
+                        <AlertDialogAction
+                            className="bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40"
+                            onClick={() => onDelete(category)}
+                        >
+                            Hapus
+                        </AlertDialogAction>
+                    )}
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
+type DeleteProductDialogProps = {
+    product: Product;
+    onDelete: (product: Product) => void;
+};
+
+function DeleteProductDialog({ product, onDelete }: DeleteProductDialogProps) {
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    title="Hapus produk"
+                    aria-label={`Hapus ${product.name}`}
+                >
+                    <Trash2 />
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Hapus produk?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Produk {product.name} akan dihapus permanen. Tindakan
+                        ini tidak dapat dibatalkan.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Batal</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40"
+                        onClick={() => onDelete(product)}
+                    >
+                        Hapus
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
 }
 
 export default function ProductsIndex({
@@ -262,12 +369,6 @@ export default function ProductsIndex({
 
     function deleteCategory(category: CategoryWithProductCount): void {
         if (category.products_count > 0) {
-            window.alert('Pindahkan atau hapus produk di kategori ini dulu.');
-
-            return;
-        }
-
-        if (!window.confirm(`Hapus ${category.name}?`)) {
             return;
         }
 
@@ -277,10 +378,6 @@ export default function ProductsIndex({
     }
 
     function deleteProduct(product: Product): void {
-        if (!window.confirm(`Hapus ${product.name}?`)) {
-            return;
-        }
-
         router.delete(destroyProduct(product.id), {
             preserveScroll: true,
         });
@@ -420,41 +517,16 @@ export default function ProductsIndex({
             <Head title="Menu" />
 
             <div className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
-                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                    <div className="grid gap-1">
-                        <h1 className="text-2xl font-semibold">Menu</h1>
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                            <span>{orderedCategories.length} kategori</span>
-                            <span>{products.length} produk</span>
-                            {(isSavingCategoryOrder ||
-                                isSavingProductOrder) && (
-                                <span className="inline-flex items-center gap-1.5">
-                                    <LoaderCircle className="size-3.5 animate-spin" />
-                                    Menyimpan
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button variant="outline" asChild>
-                            <Link href={newCategory()}>
-                                <Plus />
-                                Kategori
-                            </Link>
-                        </Button>
-                        {categories.length > 0 ? (
-                            <Button asChild>
-                                <Link href={newProduct()}>
-                                    <Plus />
-                                    Produk
-                                </Link>
-                            </Button>
-                        ) : (
-                            <Button type="button" disabled>
-                                <Plus />
-                                Produk
-                            </Button>
+                <div className="grid gap-1">
+                    <h1 className="text-2xl font-semibold">Menu</h1>
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                        <span>{orderedCategories.length} kategori</span>
+                        <span>{products.length} produk</span>
+                        {(isSavingCategoryOrder || isSavingProductOrder) && (
+                            <span className="inline-flex items-center gap-1.5">
+                                <LoaderCircle className="size-3.5 animate-spin" />
+                                Menyimpan
+                            </span>
                         )}
                     </div>
                 </div>
@@ -577,18 +649,10 @@ export default function ProductsIndex({
                                                         <Pencil />
                                                     </Link>
                                                 </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        deleteCategory(category)
-                                                    }
-                                                    title="Hapus kategori"
-                                                    aria-label={`Hapus ${category.name}`}
-                                                >
-                                                    <Trash2 />
-                                                </Button>
+                                                <DeleteCategoryDialog
+                                                    category={category}
+                                                    onDelete={deleteCategory}
+                                                />
                                             </div>
                                         </li>
                                     );
@@ -774,18 +838,10 @@ export default function ProductsIndex({
                                                         <Pencil />
                                                     </Link>
                                                 </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="destructive"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        deleteProduct(product)
-                                                    }
-                                                    title="Hapus produk"
-                                                    aria-label={`Hapus ${product.name}`}
-                                                >
-                                                    <Trash2 />
-                                                </Button>
+                                                <DeleteProductDialog
+                                                    product={product}
+                                                    onDelete={deleteProduct}
+                                                />
                                             </div>
                                         </li>
                                     );

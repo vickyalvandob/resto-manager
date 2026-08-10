@@ -43,6 +43,18 @@ test('products page is displayed', function () {
         );
 });
 
+test('menu management uses alert dialogs and single create controls', function () {
+    $menuPage = file_get_contents(resource_path('js/pages/products/index.tsx'));
+
+    expect($menuPage)
+        ->toContain("from '@/components/ui/alert-dialog'")
+        ->not->toContain('window.confirm')
+        ->not->toContain('window.alert');
+
+    expect(substr_count($menuPage, 'href={newCategory()}'))->toBe(1)
+        ->and(substr_count($menuPage, 'href={newProduct()}'))->toBe(1);
+});
+
 test('products page includes ordered products without pagination', function () {
     $user = User::factory()->create();
     $category = Category::factory()->create(['name' => 'Coffee', 'sort_order' => 1]);

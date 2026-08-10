@@ -61,6 +61,21 @@ test('pos only displays available products', function () {
         );
 });
 
+test('pos page keeps menu and cart in compact scroll regions', function () {
+    $posPage = file_get_contents(resource_path('js/pages/pos/index.tsx'));
+
+    expect($posPage)
+        ->toContain('h-[calc(100svh-4rem)]')
+        ->toContain('grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)]')
+        ->toContain('lg:grid-cols-[minmax(0,1fr)_24rem]')
+        ->toContain('overflow-y-auto')
+        ->toContain('sm:grid-cols-3')
+        ->toContain('xl:grid-cols-4')
+        ->toContain('2xl:grid-cols-5');
+
+    expect(substr_count($posPage, 'scroll-region=""'))->toBeGreaterThanOrEqual(2);
+});
+
 test('unavailable products cannot be checked out manually', function () {
     $cashier = User::factory()->cashier()->create();
     $product = Product::factory()->unavailable()->create();

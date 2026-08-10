@@ -105,6 +105,28 @@ export interface DashboardStats {
     void_orders: number;
 }
 
+export type TransactionChartRange =
+    'last_3_months' | 'last_30_days' | 'last_7_days';
+
+export interface TransactionChartPoint {
+    period: string;
+    label: string;
+    transactions: number;
+    revenue: number;
+}
+
+export interface TransactionChartSeries {
+    label: string;
+    total_transactions: number;
+    total_revenue: number;
+    points: TransactionChartPoint[];
+}
+
+export type TransactionChart = Record<
+    TransactionChartRange,
+    TransactionChartSeries
+>;
+
 export interface PaymentBreakdownItem {
     count: number;
     total: number;

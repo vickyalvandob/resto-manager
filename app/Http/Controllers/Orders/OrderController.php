@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -64,6 +66,7 @@ class OrderController extends Controller
 
         return Inertia::render('orders/show', [
             'order' => $this->detailPayload($order),
+            'products' => $order->status === 'open' ? $this->availableProductsPayload() : [],
         ]);
     }
 
@@ -113,5 +116,31 @@ class OrderController extends Controller
                 'note' => $item->note,
             ])->all(),
         ];
+    }
+
+    /**
+     * @return array<int, array{id: int, category_id: int, name: string, price: int, image_url: string|null, sort_order: int, category: array{id: int, name: string}}>
+     */
+    private function availableProductsPayload(): array
+    {
+        return Product::query()
+            ->select(['id', 'category_id', 'name', 'price', 'image', 'is_available', 'sort_order'])
+            ->with('category:id,name,sort_order')
+            ->available()
+            ->ordered()
+            ->get()
+            ->map(fn (Product $product): array => [
+                'id' => $product->id,
+                'category_id' => $product->category_id,
+                'name' => $product->name,
+                'price' => (int) round((float) $product->price),
+                'image_url' => $product->image ? Storage::url($product->image) : null,
+                'sort_order' => $product->sort_order,
+                'category' => [
+                    'id' => $product->category->id,
+                    'name' => $product->category->name,
+                ],
+            ])
+            ->all();
     }
 }

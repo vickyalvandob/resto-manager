@@ -61,6 +61,35 @@ test('pos only displays available products', function () {
         );
 });
 
+test('open order detail includes available products for adding items', function () {
+    $cashier = User::factory()->cashier()->create();
+    $available = Product::factory()->create(['name' => 'Ayam Bakar', 'is_available' => true, 'is_active' => true]);
+    Product::factory()->unavailable()->create(['name' => 'Hidden Product']);
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('pos.orders.store'), [
+            'order_type' => 'dine_in',
+            'items' => [
+                ['product_id' => $available->id, 'qty' => 1],
+            ],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $order = Order::firstOrFail();
+
+    $this
+        ->actingAs($cashier)
+        ->get(route('orders.show', $order))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('orders/show')
+            ->where('order.id', $order->id)
+            ->has('products', 1)
+            ->where('products.0.id', $available->id)
+        );
+});
+
 test('pos page keeps menu and cart in compact scroll regions', function () {
     $posPage = file_get_contents(resource_path('js/pages/pos/index.tsx'));
 
@@ -102,6 +131,41 @@ test('pos page keeps menu and cart in compact scroll regions', function () {
         ->toBeLessThan($searchInputPosition);
 
     expect(substr_count($posPage, 'scroll-region=""'))->toBeGreaterThanOrEqual(2);
+});
+
+test('order detail actions close dialogs and avoid duplicated overview cards', function () {
+    $orderPage = file_get_contents(resource_path('js/pages/orders/show.tsx'));
+    $addItemsSubmit = str($orderPage)->between('function submitAddItems(): void', 'function submitPayment(): void')->toString();
+    $paymentSubmit = str($orderPage)->between('function submitPayment(): void', 'function submitVoid(): void')->toString();
+    $voidSubmit = str($orderPage)->after('function submitVoid(): void')->toString();
+
+    expect($addItemsSubmit)
+        ->toContain('addOrderItems(order.id)')
+        ->toContain('setAddItemsOpen(false);')
+        ->toContain('resetAddItems();');
+
+    expect($paymentSubmit)
+        ->toContain('onSuccess: () => {')
+        ->toContain('setPaymentOpen(false);')
+        ->toContain("setPaidAmount('');")
+        ->toContain('setPaymentErrors({});');
+
+    expect($voidSubmit)
+        ->toContain('onSuccess: () => {')
+        ->toContain('setVoidOpen(false);')
+        ->toContain("setVoidReason('');")
+        ->toContain('setVoidErrors({});');
+
+    expect($orderPage)
+        ->toContain('Tambah Pesanan')
+        ->toContain('filteredProducts.map')
+        ->toContain('Tambah ke Order')
+        ->toContain('quickCashAmounts(order.grand_total)')
+        ->toContain('paymentOptions.map')
+        ->toContain('Metode pembayaran')
+        ->toContain('Konfirmasi Pembayaran')
+        ->not->toContain('OverviewCard')
+        ->not->toContain('grid gap-3 sm:grid-cols-2 xl:grid-cols-4');
 });
 
 test('unavailable products cannot be checked out manually', function () {
@@ -170,6 +234,139 @@ test('multiple items produce correct subtotal and snapshots keep old price', fun
     expect($order->grand_total)->toBe('80000.00')
         ->and($order->items->firstWhere('product_id', $ayam->id)->price)->toBe('32000.00')
         ->and($order->items->firstWhere('product_id', $tea->id)->subtotal)->toBe('16000.00');
+});
+
+test('open order can have items added later and totals use database prices', function () {
+    $cashier = User::factory()->cashier()->create();
+    $rice = Product::factory()->create(['name' => 'Nasi Goreng', 'price' => 30000]);
+    $tea = Product::factory()->create(['name' => 'Es Teh', 'price' => 9000]);
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('pos.orders.store'), [
+            'order_type' => 'dine_in',
+            'items' => [
+                ['product_id' => $rice->id, 'qty' => 1],
+            ],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $order = Order::with('items')->firstOrFail();
+
+    $response = $this
+        ->actingAs($cashier)
+        ->post(route('orders.items.store', $order), [
+            'items' => [
+                ['product_id' => $tea->id, 'qty' => 2, 'note' => 'Less ice'],
+            ],
+        ]);
+
+    $response
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('orders.show', $order));
+
+    $order->refresh()->load('items');
+    $addedItem = $order->items->firstWhere('product_id', $tea->id);
+
+    expect($order->status)->toBe('open')
+        ->and($order->items)->toHaveCount(2)
+        ->and($order->grand_total)->toBe('48000.00')
+        ->and($addedItem->product_name)->toBe('Es Teh')
+        ->and($addedItem->price)->toBe('9000.00')
+        ->and($addedItem->qty)->toBe(2)
+        ->and($addedItem->subtotal)->toBe('18000.00')
+        ->and($addedItem->note)->toBe('Less ice');
+});
+
+test('unavailable products cannot be added to open orders', function () {
+    $cashier = User::factory()->cashier()->create();
+    $product = Product::factory()->create(['price' => 30000]);
+    $unavailable = Product::factory()->unavailable()->create(['price' => 9000]);
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('pos.orders.store'), [
+            'order_type' => 'dine_in',
+            'items' => [
+                ['product_id' => $product->id, 'qty' => 1],
+            ],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $order = Order::with('items')->firstOrFail();
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('orders.items.store', $order), [
+            'items' => [
+                ['product_id' => $unavailable->id, 'qty' => 1],
+            ],
+        ])
+        ->assertSessionHasErrors(['items.0.product_id']);
+
+    $order->refresh()->load('items');
+
+    expect($order->items)->toHaveCount(1)
+        ->and($order->grand_total)->toBe('30000.00');
+});
+
+test('paid and void orders cannot have items added', function () {
+    $cashier = User::factory()->cashier()->create();
+    $product = Product::factory()->create(['price' => 30000]);
+    $extra = Product::factory()->create(['price' => 9000]);
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('pos.orders.store'), [
+            'order_type' => 'dine_in',
+            'payment_method' => 'qris',
+            'items' => [
+                ['product_id' => $product->id, 'qty' => 1],
+            ],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $paidOrder = Order::firstOrFail();
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('orders.items.store', $paidOrder), [
+            'items' => [
+                ['product_id' => $extra->id, 'qty' => 1],
+            ],
+        ])
+        ->assertSessionHasErrors(['items']);
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('pos.orders.store'), [
+            'order_type' => 'dine_in',
+            'items' => [
+                ['product_id' => $product->id, 'qty' => 1],
+            ],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $voidOrder = Order::latest('id')->firstOrFail();
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('orders.void.store', $voidOrder), [
+            'void_reason' => 'Customer cancelled',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $this
+        ->actingAs($cashier)
+        ->post(route('orders.items.store', $voidOrder), [
+            'items' => [
+                ['product_id' => $extra->id, 'qty' => 1],
+            ],
+        ])
+        ->assertSessionHasErrors(['items']);
+
+    expect($paidOrder->refresh()->items)->toHaveCount(1)
+        ->and($voidOrder->refresh()->items)->toHaveCount(1);
 });
 
 test('cash payment records change and rejects insufficient cash', function () {

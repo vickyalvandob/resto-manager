@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Orders\OrderController;
+use App\Http\Controllers\Orders\OrderItemController;
 use App\Http\Controllers\Orders\PaymentController;
 use App\Http\Controllers\Orders\ReceiptController;
 use App\Http\Controllers\Orders\VoidOrderController;
@@ -37,6 +38,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
         Route::get('orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+        Route::post('orders/{order}/items', [OrderItemController::class, 'store'])->name('orders.items.store');
         Route::post('orders/{order}/payments', [PaymentController::class, 'store'])->name('orders.payments.store');
         Route::post('orders/{order}/void', [VoidOrderController::class, 'store'])->name('orders.void.store');
         Route::get('orders/{order}/receipt', [ReceiptController::class, 'show'])->name('orders.receipt');

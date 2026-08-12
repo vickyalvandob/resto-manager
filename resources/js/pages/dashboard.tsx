@@ -3,6 +3,11 @@ import { CreditCard, ReceiptText, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { formatRupiah } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
@@ -60,7 +65,7 @@ export default function Dashboard({
                 <div>
                     <h1 className="text-2xl font-semibold">Dashboard</h1>
                     <p className="text-sm text-muted-foreground">
-                        Today summary
+                        Ringkasan operasional hari ini
                     </p>
                 </div>
 
@@ -93,15 +98,15 @@ export default function Dashboard({
                             return (
                                 <div
                                     key={method}
-                                    className="rounded-lg border bg-background p-4"
+                                    className="rounded-lg border border-border/70 bg-card p-4 text-card-foreground shadow-xs transition-colors hover:bg-muted/20"
                                 >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex size-9 items-center justify-center rounded-md bg-muted">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                                                 <Icon className="size-4" />
                                             </div>
-                                            <div>
-                                                <h2 className="font-semibold">
+                                            <div className="min-w-0">
+                                                <h2 className="truncate font-semibold">
                                                     {paymentLabels[method]}
                                                 </h2>
                                                 <p className="text-sm text-muted-foreground">
@@ -110,23 +115,19 @@ export default function Dashboard({
                                                 </p>
                                             </div>
                                         </div>
-                                        <Badge variant="secondary">
-                                            {formatRupiah(breakdown.total)}
+                                        <Badge
+                                            variant="outline"
+                                            className="max-w-[45%] justify-end border-border/70 bg-muted/20 text-right text-foreground"
+                                        >
+                                            <span className="truncate">
+                                                {formatRupiah(breakdown.total)}
+                                            </span>
                                         </Badge>
                                     </div>
                                 </div>
                             );
                         },
                     )}
-                </div>
-
-                <div className="rounded-lg border bg-background p-4">
-                    <h2 className="font-semibold">Order Status</h2>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                        <Status label="Open" value={stats.open_orders} />
-                        <Status label="Paid" value={stats.paid_orders} />
-                        <Status label="Void" value={stats.void_orders} />
-                    </div>
                 </div>
             </div>
         </>
@@ -165,7 +166,7 @@ function TransactionChartCard({
     }, [maxTransactions]);
 
     return (
-        <div className="rounded-lg border bg-background p-4">
+        <div className="rounded-lg border border-border/70 bg-card p-4 text-card-foreground shadow-xs">
             <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
                 <div>
                     <h2 className="font-semibold">Transaction Trend</h2>
@@ -182,14 +183,14 @@ function TransactionChartCard({
                             onRangeChange(value as TransactionChartRange);
                         }
                     }}
-                    className="w-full justify-start overflow-x-auto rounded-md border bg-muted/30 p-1 sm:w-auto"
+                    className="w-full justify-start overflow-x-auto rounded-md border border-border/70 bg-muted/30 p-1 sm:w-auto"
                 >
                     {chartRanges.map((range) => (
                         <ToggleGroupItem
                             key={range}
                             value={range}
                             size="sm"
-                            className="min-w-max rounded-sm px-3 data-[state=on]:bg-background data-[state=on]:shadow-xs"
+                            className="min-w-max rounded-sm px-3 text-muted-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs"
                         >
                             {chartRangeLabels[range]}
                         </ToggleGroupItem>
@@ -201,7 +202,7 @@ function TransactionChartCard({
                 <div
                     role="img"
                     aria-label={`${chart.label} paid transaction chart`}
-                    className="relative h-64 overflow-hidden rounded-md border bg-muted/20 p-3"
+                    className="relative h-64 overflow-hidden rounded-md border border-border/70 bg-muted/10 p-3"
                 >
                     <div className="absolute inset-x-3 top-3 bottom-11 flex flex-col justify-between">
                         {gridLabels.map((label) => (
@@ -212,7 +213,7 @@ function TransactionChartCard({
                                 <span className="w-6 text-right text-[10px] text-muted-foreground">
                                     {label}
                                 </span>
-                                <span className="h-px flex-1 bg-border" />
+                                <span className="h-px flex-1 bg-border/70" />
                             </div>
                         ))}
                     </div>
@@ -231,18 +232,44 @@ function TransactionChartCard({
                                           );
 
                                 return (
-                                    <div
-                                        key={point.period}
-                                        className="group flex h-full min-w-0 flex-1 items-end"
-                                        title={`${point.label}: ${point.transactions} transactions, ${formatRupiah(point.revenue)}`}
-                                    >
-                                        <div
-                                            className="mx-auto w-full max-w-8 rounded-t-sm bg-primary/75 transition-colors group-hover:bg-primary"
-                                            style={{
-                                                height: `${barHeight}%`,
-                                            }}
-                                        />
-                                    </div>
+                                    <Tooltip key={point.period}>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                type="button"
+                                                className="group flex h-full min-w-0 flex-1 cursor-default items-end rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                                                aria-label={`${point.label}: ${point.transactions} transactions, ${formatRupiah(point.revenue)}`}
+                                            >
+                                                <span
+                                                    className="mx-auto block w-full max-w-8 rounded-t-sm bg-foreground/60 transition-colors group-hover:bg-foreground group-focus-visible:bg-foreground"
+                                                    style={{
+                                                        height: `${barHeight}%`,
+                                                    }}
+                                                />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                            side="top"
+                                            className="w-56 px-3 py-2"
+                                        >
+                                            <div className="font-medium">
+                                                {point.label}
+                                            </div>
+                                            <div className="mt-1 flex items-center justify-between gap-4 text-primary-foreground/80">
+                                                <span>Transactions</span>
+                                                <span className="font-medium text-primary-foreground">
+                                                    {point.transactions}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-4 text-primary-foreground/80">
+                                                <span>Revenue</span>
+                                                <span className="text-right font-medium text-primary-foreground">
+                                                    {formatRupiah(
+                                                        point.revenue,
+                                                    )}
+                                                </span>
+                                            </div>
+                                        </TooltipContent>
+                                    </Tooltip>
                                 );
                             })}
                         </div>
@@ -272,11 +299,11 @@ function TransactionChartCard({
                         label="Transactions"
                         value={chart.total_transactions}
                     />
-                    <div className="rounded-md border px-3 py-2">
+                    <div className="rounded-md border border-border/70 bg-background px-3 py-2">
                         <span className="text-sm text-muted-foreground">
                             Revenue
                         </span>
-                        <div className="mt-1 font-semibold">
+                        <div className="mt-1 font-semibold break-words">
                             {formatRupiah(chart.total_revenue)}
                         </div>
                     </div>
@@ -297,10 +324,15 @@ function Metric({
 }) {
     return (
         <div
-            className={`rounded-lg border bg-background p-4 ${className ?? ''}`}
+            className={cn(
+                'min-w-0 rounded-lg border border-border/70 bg-card p-4 text-card-foreground shadow-xs',
+                className,
+            )}
         >
             <p className="text-sm text-muted-foreground">{label}</p>
-            <div className="mt-2 text-2xl font-semibold">{value}</div>
+            <div className="mt-2 text-2xl leading-tight font-semibold break-words">
+                {value}
+            </div>
         </div>
     );
 }
@@ -319,9 +351,9 @@ function shouldShowChartLabel(
 
 function Status({ label, value }: { label: string; value: number }) {
     return (
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background px-3 py-2">
             <span className="text-sm text-muted-foreground">{label}</span>
-            <span className="font-semibold">{value}</span>
+            <span className="font-semibold tabular-nums">{value}</span>
         </div>
     );
 }

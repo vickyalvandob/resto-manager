@@ -591,7 +591,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
                         {filteredProducts.length > 0 ? (
                             <div
-                                className="grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+                                className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                                 scroll-region=""
                             >
                                 {filteredProducts.map((product) => {
@@ -602,9 +602,9 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                             key={product.id}
                                             type="button"
                                             onClick={() => addProduct(product)}
-                                            className="group relative flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background text-left shadow-xs transition hover:border-primary/50 hover:bg-muted/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                            className="group relative grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2 text-left shadow-xs transition hover:border-primary/50 hover:bg-muted/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:flex sm:min-h-0 sm:flex-col sm:gap-0 sm:p-0"
                                         >
-                                            <div className="relative aspect-[5/3] bg-muted">
+                                            <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted sm:aspect-[5/3] sm:h-auto sm:w-full sm:rounded-none">
                                                 {product.image_url ? (
                                                     <img
                                                         src={product.image_url}
@@ -617,27 +617,27 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                     </div>
                                                 )}
                                                 {quantity > 0 && (
-                                                    <Badge className="absolute top-1.5 right-1.5 shadow-sm">
+                                                    <Badge className="absolute top-1.5 right-1.5 hidden shadow-sm sm:inline-flex">
                                                         x{quantity}
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <div className="flex min-h-22 flex-1 flex-col gap-1.5 p-2">
+                                            <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 sm:min-h-22 sm:justify-start sm:gap-1.5 sm:p-2">
                                                 <div className="min-w-0 flex-1">
                                                     <span className="line-clamp-2 text-sm leading-5 font-medium">
                                                         {product.name}
                                                     </span>
-                                                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                                                    <span className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">
                                                         {product.category.name}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="truncate text-xs font-semibold text-primary sm:text-sm">
+                                                <div className="flex items-center justify-between gap-2 sm:mt-auto">
+                                                    <span className="truncate text-sm font-semibold text-primary">
                                                         {formatRupiah(
                                                             product.price,
                                                         )}
                                                     </span>
-                                                    <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition group-hover:bg-primary/90">
+                                                    <span className="hidden size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition group-hover:bg-primary/90 sm:flex">
                                                         <Plus className="size-4" />
                                                     </span>
                                                 </div>

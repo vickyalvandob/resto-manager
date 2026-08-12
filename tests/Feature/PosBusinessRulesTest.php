@@ -69,6 +69,11 @@ test('pos page keeps menu and cart in compact scroll regions', function () {
         ->toContain('grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)]')
         ->toContain('lg:grid-cols-[minmax(0,1fr)_24rem]')
         ->toContain('overflow-y-auto')
+        ->toContain('grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5')
+        ->toContain('grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2')
+        ->toContain('size-14 shrink-0 overflow-hidden rounded-md bg-muted')
+        ->toContain('hidden truncate text-xs text-muted-foreground sm:block')
+        ->toContain('hidden size-7 shrink-0 items-center justify-center rounded-md bg-primary')
         ->toContain('sm:grid-cols-3')
         ->toContain('xl:grid-cols-4')
         ->toContain('2xl:grid-cols-5')
@@ -83,6 +88,9 @@ test('pos page keeps menu and cart in compact scroll regions', function () {
         ->not->toContain('<h1 className="text-xl font-semibold">POS</h1>')
         ->not->toContain('<h2 className="truncate font-semibold">Menu</h2>')
         ->not->toContain('{filteredProducts.length} hasil')
+        ->not->toContain('grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3')
+        ->not->toContain('flex min-h-24 flex-row')
+        ->not->toContain('h-24 w-28 shrink-0')
         ->not->toContain('xl:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1fr)]')
         ->not->toContain('className="grid shrink-0 gap-2 rounded-lg border bg-background p-2 sm:p-3"');
 

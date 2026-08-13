@@ -25,10 +25,7 @@ export default function UsersCreate({ roleOptions }: UsersCreateProps) {
                     </p>
                 </div>
 
-                <UserForm
-                    roleOptions={roleOptions}
-                    submitLabel="Buat User"
-                />
+                <UserForm roleOptions={roleOptions} submitLabel="Buat User" />
             </div>
         </>
     );

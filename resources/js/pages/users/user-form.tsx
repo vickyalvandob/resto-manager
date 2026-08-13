@@ -144,10 +144,7 @@ export function UserForm({ roleOptions, user, submitLabel }: UserFormProps) {
                         id="password_confirmation"
                         value={data.password_confirmation}
                         onChange={(event) =>
-                            setData(
-                                'password_confirmation',
-                                event.target.value,
-                            )
+                            setData('password_confirmation', event.target.value)
                         }
                         required={!user || data.password !== ''}
                         autoComplete="new-password"

@@ -522,7 +522,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
             <Head title="POS" />
 
             <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col gap-2 overflow-y-auto bg-muted/30 p-2 sm:gap-3 sm:p-3 lg:overflow-hidden lg:p-4">
-                <div className="grid min-h-full flex-1 grid-rows-[minmax(24rem,1fr)_minmax(18rem,0.8fr)] gap-2 sm:gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_27rem]">
+                <div className="grid min-h-full flex-1 grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)] gap-2 sm:gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_27rem]">
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
                         <div className="grid shrink-0 gap-2 border-b p-2 sm:p-3">
                             <div className="flex gap-2 overflow-x-auto pb-1">

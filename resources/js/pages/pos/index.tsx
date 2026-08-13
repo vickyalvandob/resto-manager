@@ -521,8 +521,8 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
         <>
             <Head title="POS" />
 
-            <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col gap-2 overflow-hidden bg-muted/30 p-2 sm:gap-3 sm:p-3 lg:p-4">
-                <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)] gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_27rem]">
+            <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col gap-2 overflow-y-auto bg-muted/30 p-2 sm:gap-3 sm:p-3 lg:overflow-hidden lg:p-4">
+                <div className="grid min-h-full flex-1 grid-rows-[minmax(24rem,1fr)_minmax(18rem,0.8fr)] gap-2 sm:gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_27rem]">
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
                         <div className="grid shrink-0 gap-2 border-b p-2 sm:p-3">
                             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -591,7 +591,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
                         {filteredProducts.length > 0 ? (
                             <div
-                                className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+                                className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                                 scroll-region=""
                             >
                                 {filteredProducts.map((product) => {
@@ -602,7 +602,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                             key={product.id}
                                             type="button"
                                             onClick={() => addProduct(product)}
-                                            className="group relative grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2 text-left shadow-xs transition hover:border-primary/50 hover:bg-muted/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:flex sm:min-h-0 sm:flex-col sm:gap-0 sm:p-0"
+                                            className="group relative grid min-h-[4.5rem] grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2 text-left shadow-xs transition hover:border-primary/50 hover:bg-muted/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:flex sm:min-h-0 sm:flex-col sm:gap-0 sm:p-0"
                                         >
                                             <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted sm:aspect-[5/3] sm:h-auto sm:w-full sm:rounded-none">
                                                 {product.image_url ? (

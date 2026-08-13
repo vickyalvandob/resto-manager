@@ -1,3 +1,5 @@
+import type { UserRole } from './auth';
+
 export type * from './auth';
 export type * from './navigation';
 export type * from './ui';
@@ -142,6 +144,18 @@ export interface StoreSetting {
     receipt_footer: string | null;
     logo: string | null;
     logo_url: string | null;
+}
+
+export interface ManagedUser {
+    id: number;
+    name: string;
+    email: string;
+    role: UserRole;
+    email_verified_at: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    orders_count: number;
+    can_delete: boolean;
 }
 
 export interface PaginatedData<T> {

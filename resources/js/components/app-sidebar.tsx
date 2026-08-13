@@ -6,6 +6,7 @@ import {
     Settings,
     ShoppingCart,
     Tags,
+    UsersRound,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -26,6 +27,7 @@ import { index as posIndex } from '@/routes/pos';
 import { index as productsIndex } from '@/routes/products';
 import { index as reportsIndex } from '@/routes/reports';
 import { index as settingsIndex } from '@/routes/settings';
+import { index as usersIndex } from '@/routes/users';
 import type { NavItem } from '@/types';
 
 const adminNavItems: NavItem[] = [
@@ -38,6 +40,11 @@ const adminNavItems: NavItem[] = [
         title: 'POS',
         href: posIndex(),
         icon: ShoppingCart,
+    },
+    {
+        title: 'Users',
+        href: usersIndex(),
+        icon: UsersRound,
     },
     {
         title: 'Orders',

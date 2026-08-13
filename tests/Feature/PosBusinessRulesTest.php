@@ -90,6 +90,93 @@ test('open order detail includes available products for adding items', function 
         );
 });
 
+test('orders index includes summary and keeps status filtering separate', function () {
+    $cashier = User::factory()->cashier()->create();
+
+    Order::query()->create([
+        'queue_number' => 1,
+        'invoice_number' => 'INV-INDEX-001',
+        'customer_name' => 'Ana',
+        'order_type' => 'dine_in',
+        'subtotal' => 25000,
+        'grand_total' => 25000,
+        'status' => 'open',
+        'cashier_id' => $cashier->id,
+    ]);
+
+    Order::query()->create([
+        'queue_number' => 2,
+        'invoice_number' => 'INV-INDEX-002',
+        'customer_name' => 'Budi',
+        'order_type' => 'take_away',
+        'subtotal' => 50000,
+        'grand_total' => 50000,
+        'payment_method' => 'qris',
+        'paid_amount' => 50000,
+        'status' => 'paid',
+        'cashier_id' => $cashier->id,
+        'paid_at' => now(),
+    ]);
+
+    $voidOrder = Order::query()->create([
+        'queue_number' => 3,
+        'invoice_number' => 'INV-INDEX-003',
+        'customer_name' => 'Citra',
+        'order_type' => 'dine_in',
+        'subtotal' => 15000,
+        'grand_total' => 15000,
+        'status' => 'void',
+        'cashier_id' => $cashier->id,
+        'void_reason' => 'Cancelled',
+    ]);
+
+    $voidOrder
+        ->forceFill([
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+            'voided_at' => now()->subDay(),
+        ])
+        ->save();
+
+    $this
+        ->actingAs($cashier)
+        ->get(route('orders.index', ['date' => 'today']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('orders/index')
+            ->where('filters.date', 'today')
+            ->where('filters.status', '')
+            ->where('summary.total_orders', 2)
+            ->where('summary.open_orders', 1)
+            ->where('summary.paid_orders', 1)
+            ->where('summary.void_orders', 0)
+            ->where('summary.paid_revenue', 50000)
+            ->has('orders.data', 2)
+            ->etc()
+        );
+
+    $this
+        ->actingAs($cashier)
+        ->get(route('orders.index', [
+            'date' => 'all',
+            'status' => 'paid',
+            'search' => 'INV-INDEX',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('filters.date', 'all')
+            ->where('filters.status', 'paid')
+            ->where('filters.search', 'INV-INDEX')
+            ->where('summary.total_orders', 3)
+            ->where('summary.open_orders', 1)
+            ->where('summary.paid_orders', 1)
+            ->where('summary.void_orders', 1)
+            ->where('orders.total', 1)
+            ->where('orders.data.0.invoice_number', 'INV-INDEX-002')
+            ->etc()
+        );
+});
+
 test('pos page keeps menu and cart in compact scroll regions', function () {
     $posPage = file_get_contents(resource_path('js/pages/pos/index.tsx'));
 
@@ -166,6 +253,22 @@ test('order detail actions close dialogs and avoid duplicated overview cards', f
         ->toContain('Konfirmasi Pembayaran')
         ->not->toContain('OverviewCard')
         ->not->toContain('grid gap-3 sm:grid-cols-2 xl:grid-cols-4');
+});
+
+test('orders index page exposes operational summary filters and mobile cards', function () {
+    $orderIndexPage = file_get_contents(resource_path('js/pages/orders/index.tsx'));
+
+    expect($orderIndexPage)
+        ->toContain('type OrderSummary =')
+        ->toContain('Total Order')
+        ->toContain('Omzet Paid')
+        ->toContain('dateFilterOptions')
+        ->toContain('StatusFilterButton')
+        ->toContain('OrderCard')
+        ->toContain('lg:hidden')
+        ->toContain('hidden overflow-x-auto lg:block')
+        ->toContain('receiptOrder.url(order.id)')
+        ->toContain('prefetch');
 });
 
 test('unavailable products cannot be checked out manually', function () {

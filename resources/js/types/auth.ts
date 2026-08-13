@@ -1,8 +1,10 @@
+export type UserRole = 'admin' | 'cashier';
+
 export type User = {
     id: number;
     name: string;
     email: string;
-    role: 'admin' | 'cashier';
+    role: UserRole;
     avatar?: string;
     email_verified_at: string | null;
     created_at: string;

@@ -1,32 +1,90 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ChevronLeft, ChevronRight, Eye, Printer, Search } from 'lucide-react';
+import {
+    Ban,
+    CalendarDays,
+    CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
+    Clock3,
+    Eye,
+    Printer,
+    ReceiptText,
+    Search,
+    WalletCards,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { FormEvent, ReactNode } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { formatRupiah } from '@/lib/currency';
 import { formatDateTime } from '@/lib/date';
+import { cn } from '@/lib/utils';
 import {
     index as ordersIndex,
     receipt as receiptOrder,
     show as showOrder,
 } from '@/routes/orders';
-import type { OrderListItem, PaginatedData } from '@/types';
+import type {
+    OrderListItem,
+    OrderStatus,
+    OrderType,
+    PaginatedData,
+    PaymentMethod,
+} from '@/types';
+
+type OrderDateFilter = 'today' | 'yesterday' | 'all';
+type OrderStatusFilter = '' | OrderStatus;
+
+type OrderFilters = {
+    date: OrderDateFilter;
+    status: OrderStatusFilter;
+    search: string;
+};
+
+type OrderSummary = {
+    total_orders: number;
+    open_orders: number;
+    paid_orders: number;
+    void_orders: number;
+    paid_revenue: number;
+};
 
 type OrdersIndexProps = {
     orders: PaginatedData<OrderListItem>;
-    filters: {
-        date: string;
-        status: string;
-        search: string;
-    };
+    filters: OrderFilters;
+    summary: OrderSummary;
 };
 
-const statusLabels: Record<string, string> = {
+const dateFilterOptions: Array<{ value: OrderDateFilter; label: string }> = [
+    { value: 'today', label: 'Hari ini' },
+    { value: 'yesterday', label: 'Kemarin' },
+    { value: 'all', label: 'Semua tanggal' },
+];
+
+const statusLabels: Record<OrderStatus, string> = {
     open: 'Open',
     paid: 'Paid',
     void: 'Void',
+};
+
+const statusIcons: Record<OrderStatus, LucideIcon> = {
+    open: Clock3,
+    paid: CheckCircle2,
+    void: Ban,
+};
+
+const orderTypeLabels: Record<OrderType, string> = {
+    dine_in: 'Dine In',
+    take_away: 'Take Away',
+};
+
+const paymentLabels: Record<PaymentMethod, string> = {
+    cash: 'Tunai',
+    qris: 'QRIS',
+    transfer: 'Transfer',
 };
 
 function getVisiblePages(currentPage: number, lastPage: number): number[] {
@@ -36,221 +94,306 @@ function getVisiblePages(currentPage: number, lastPage: number): number[] {
     return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
 
-export default function OrdersIndex({ orders, filters }: OrdersIndexProps) {
+function dateFilterLabel(date: OrderDateFilter): string {
+    return (
+        dateFilterOptions.find((option) => option.value === date)?.label ??
+        'Hari ini'
+    );
+}
+
+function paymentMethodLabel(paymentMethod: PaymentMethod | null): string {
+    return paymentMethod ? paymentLabels[paymentMethod] : '-';
+}
+
+function statusBadgeVariant(
+    status: OrderStatus,
+): 'default' | 'secondary' | 'outline' {
+    if (status === 'paid') {
+        return 'secondary';
+    }
+
+    if (status === 'void') {
+        return 'outline';
+    }
+
+    return 'default';
+}
+
+function queryParams({
+    date,
+    status,
+    search,
+    page,
+}: OrderFilters & { page?: number }): {
+    date: OrderDateFilter;
+    status?: OrderStatus;
+    search?: string;
+    page?: number;
+} {
+    return {
+        date,
+        status: status || undefined,
+        search: search.trim() || undefined,
+        page,
+    };
+}
+
+export default function OrdersIndex({
+    orders,
+    filters,
+    summary,
+}: OrdersIndexProps) {
     const [search, setSearch] = useState(filters.search);
-    const [status, setStatus] = useState(filters.status);
+    const [status, setStatus] = useState<OrderStatusFilter>(filters.status);
+    const [date, setDate] = useState<OrderDateFilter>(filters.date);
+
+    const visiblePages = useMemo(
+        () => getVisiblePages(orders.current_page, orders.last_page),
+        [orders.current_page, orders.last_page],
+    );
+    const hasActiveFilters =
+        search.trim() !== '' || status !== '' || date !== 'today';
+    const activeFilters: OrderFilters = { date, status, search };
+
+    function visitOrders(nextFilters: OrderFilters): void {
+        router.get(ordersIndex(), queryParams(nextFilters), {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    }
 
     function applyFilters(event?: FormEvent<HTMLFormElement>): void {
         event?.preventDefault();
 
-        router.get(
-            ordersIndex(),
-            {
-                date: 'today',
-                status: status || undefined,
-                search: search || undefined,
-            },
-            {
-                preserveState: true,
-                preserveScroll: true,
-            },
-        );
+        visitOrders({
+            date,
+            status,
+            search: search.trim(),
+        });
     }
 
-    function filterByStatus(nextStatus: string): void {
+    function filterByDate(nextDate: OrderDateFilter): void {
+        setDate(nextDate);
+        visitOrders({ date: nextDate, status, search: search.trim() });
+    }
+
+    function filterByStatus(nextStatus: OrderStatusFilter): void {
         setStatus(nextStatus);
-
-        router.get(
-            ordersIndex(),
-            {
-                date: 'today',
-                status: nextStatus || undefined,
-                search: search || undefined,
-            },
-            {
-                preserveState: true,
-                preserveScroll: true,
-            },
-        );
+        visitOrders({ date, status: nextStatus, search: search.trim() });
     }
 
-    const visiblePages = getVisiblePages(orders.current_page, orders.last_page);
+    function resetFilters(): void {
+        const nextFilters: OrderFilters = {
+            date: 'today',
+            status: '',
+            search: '',
+        };
+
+        setDate(nextFilters.date);
+        setStatus(nextFilters.status);
+        setSearch(nextFilters.search);
+        visitOrders(nextFilters);
+    }
 
     return (
         <>
             <Head title="Orders" />
 
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto p-4">
-                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-                    <div>
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-y-auto p-4">
+                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                    <div className="min-w-0">
                         <h1 className="text-2xl font-semibold">Orders</h1>
                         <p className="text-sm text-muted-foreground">
-                            Today by default, newest first
+                            Pantau status order, kasir, dan pembayaran.
                         </p>
                     </div>
-
-                    <form
-                        onSubmit={applyFilters}
-                        className="flex flex-col gap-2 sm:flex-row"
+                    <Badge
+                        variant="outline"
+                        className="w-fit gap-1.5 px-3 py-1.5"
                     >
-                        <div className="relative">
-                            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                                value={search}
-                                onChange={(event) =>
-                                    setSearch(event.target.value)
-                                }
-                                placeholder="Invoice, queue, customer"
-                                className="w-full pl-9 sm:w-72"
-                            />
-                        </div>
-                        <Button type="submit">Search</Button>
-                    </form>
+                        <CalendarDays className="size-3.5" />
+                        {dateFilterLabel(date)}
+                    </Badge>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                    <Button
-                        type="button"
-                        variant={status === '' ? 'default' : 'outline'}
-                        onClick={() => filterByStatus('')}
-                    >
-                        Today
-                    </Button>
-                    {Object.entries(statusLabels).map(([value, label]) => (
-                        <Button
-                            key={value}
-                            type="button"
-                            variant={status === value ? 'default' : 'outline'}
-                            onClick={() => filterByStatus(value)}
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <Metric
+                        label="Total Order"
+                        value={String(summary.total_orders)}
+                        detail={dateFilterLabel(date)}
+                        icon={ReceiptText}
+                    />
+                    <Metric
+                        label="Open"
+                        value={String(summary.open_orders)}
+                        detail="Belum dibayar"
+                        icon={Clock3}
+                    />
+                    <Metric
+                        label="Omzet Paid"
+                        value={formatRupiah(summary.paid_revenue)}
+                        detail={`${summary.paid_orders} transaksi lunas`}
+                        icon={WalletCards}
+                        className="sm:col-span-2 xl:col-span-1"
+                    />
+                    <Metric
+                        label="Void"
+                        value={String(summary.void_orders)}
+                        detail="Order dibatalkan"
+                        icon={Ban}
+                    />
+                </div>
+
+                <section className="overflow-hidden rounded-lg border border-border/70 bg-background">
+                    <div className="grid gap-3 border-b px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                        <form
+                            onSubmit={applyFilters}
+                            className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto_auto] sm:items-end"
                         >
-                            {label}
-                        </Button>
-                    ))}
-                </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="orders_search">Cari</Label>
+                                <div className="relative">
+                                    <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        id="orders_search"
+                                        value={search}
+                                        onChange={(event) =>
+                                            setSearch(event.target.value)
+                                        }
+                                        placeholder="Invoice, antrean, pelanggan"
+                                        className="pl-9"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="orders_date">Tanggal</Label>
+                                <select
+                                    id="orders_date"
+                                    value={date}
+                                    onChange={(event) =>
+                                        filterByDate(
+                                            event.target
+                                                .value as OrderDateFilter,
+                                        )
+                                    }
+                                    className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                >
+                                    {dateFilterOptions.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <Button type="submit">
+                                <Search />
+                                Terapkan
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={!hasActiveFilters}
+                                onClick={resetFilters}
+                            >
+                                Reset
+                            </Button>
+                        </form>
+                    </div>
 
-                <div className="overflow-hidden rounded-lg border bg-background">
-                    <div className="overflow-x-auto">
+                    <div className="flex gap-2 overflow-x-auto px-4 py-3">
+                        <StatusFilterButton
+                            label="Semua"
+                            count={summary.total_orders}
+                            active={status === ''}
+                            onClick={() => filterByStatus('')}
+                        />
+                        <StatusFilterButton
+                            label={statusLabels.open}
+                            count={summary.open_orders}
+                            active={status === 'open'}
+                            icon={Clock3}
+                            onClick={() => filterByStatus('open')}
+                        />
+                        <StatusFilterButton
+                            label={statusLabels.paid}
+                            count={summary.paid_orders}
+                            active={status === 'paid'}
+                            icon={CheckCircle2}
+                            onClick={() => filterByStatus('paid')}
+                        />
+                        <StatusFilterButton
+                            label={statusLabels.void}
+                            count={summary.void_orders}
+                            active={status === 'void'}
+                            icon={Ban}
+                            onClick={() => filterByStatus('void')}
+                        />
+                    </div>
+                </section>
+
+                <section className="overflow-hidden rounded-lg border border-border/70 bg-background">
+                    <div className="flex flex-col justify-between gap-2 border-b px-4 py-3 sm:flex-row sm:items-center">
+                        <div>
+                            <h2 className="font-semibold">Daftar Order</h2>
+                            <p className="text-sm text-muted-foreground">
+                                {orders.total > 0
+                                    ? `Menampilkan ${orders.from} sampai ${orders.to} dari ${orders.total} order`
+                                    : 'Tidak ada order untuk filter ini'}
+                            </p>
+                        </div>
+                        {status !== '' && (
+                            <Badge variant={statusBadgeVariant(status)}>
+                                {statusLabels[status]}
+                            </Badge>
+                        )}
+                    </div>
+
+                    <div className="grid gap-3 p-3 lg:hidden">
+                        {orders.data.length > 0 ? (
+                            orders.data.map((order) => (
+                                <OrderCard key={order.id} order={order} />
+                            ))
+                        ) : (
+                            <EmptyOrders />
+                        )}
+                    </div>
+
+                    <div className="hidden overflow-x-auto lg:block">
                         <table className="w-full text-left text-sm">
                             <thead className="border-b bg-muted/50 text-xs font-medium text-muted-foreground uppercase">
                                 <tr>
-                                    <th className="px-4 py-3">Queue</th>
-                                    <th className="px-4 py-3">Invoice</th>
-                                    <th className="hidden px-4 py-3 md:table-cell">
-                                        Time
+                                    <th className="px-4 py-3">Antrean</th>
+                                    <th className="px-4 py-3">Order</th>
+                                    <th className="px-4 py-3">Pelanggan</th>
+                                    <th className="hidden px-4 py-3 xl:table-cell">
+                                        Tipe
                                     </th>
-                                    <th className="px-4 py-3">Customer</th>
-                                    <th className="hidden px-4 py-3 lg:table-cell">
-                                        Payment
-                                    </th>
+                                    <th className="px-4 py-3">Pembayaran</th>
                                     <th className="px-4 py-3">Total</th>
                                     <th className="px-4 py-3">Status</th>
                                     <th className="hidden px-4 py-3 xl:table-cell">
-                                        Cashier
+                                        Kasir
                                     </th>
-                                    <th className="w-28 px-4 py-3 text-right">
-                                        Actions
+                                    <th className="w-32 px-4 py-3 text-right">
+                                        Aksi
                                     </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
                                 {orders.data.length > 0 ? (
                                     orders.data.map((order) => (
-                                        <tr
+                                        <OrderRow
                                             key={order.id}
-                                            className="hover:bg-muted/30"
-                                        >
-                                            <td className="px-4 py-4 font-semibold">
-                                                {order.queue_number}
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <div className="font-medium">
-                                                    {order.invoice_number}
-                                                </div>
-                                                <div className="text-xs text-muted-foreground md:hidden">
-                                                    {formatDateTime(
-                                                        order.created_at,
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="hidden px-4 py-4 text-muted-foreground md:table-cell">
-                                                {formatDateTime(
-                                                    order.created_at,
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                {order.customer_name || '-'}
-                                            </td>
-                                            <td className="hidden px-4 py-4 uppercase lg:table-cell">
-                                                {order.payment_method || '-'}
-                                            </td>
-                                            <td className="px-4 py-4 font-medium whitespace-nowrap">
-                                                {formatRupiah(
-                                                    order.grand_total,
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <Badge
-                                                    variant={
-                                                        order.status === 'paid'
-                                                            ? 'secondary'
-                                                            : order.status ===
-                                                                'void'
-                                                              ? 'outline'
-                                                              : 'default'
-                                                    }
-                                                >
-                                                    {order.status}
-                                                </Badge>
-                                            </td>
-                                            <td className="hidden px-4 py-4 xl:table-cell">
-                                                {order.cashier.name}
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <div className="flex justify-end gap-2">
-                                                    {order.status ===
-                                                        'paid' && (
-                                                        <Button
-                                                            asChild
-                                                            variant="outline"
-                                                            size="icon"
-                                                            title="Print receipt"
-                                                        >
-                                                            <a
-                                                                href={receiptOrder.url(
-                                                                    order.id,
-                                                                )}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                            >
-                                                                <Printer />
-                                                            </a>
-                                                        </Button>
-                                                    )}
-                                                    <Button
-                                                        asChild
-                                                        variant="outline"
-                                                        size="icon"
-                                                        title="View order"
-                                                    >
-                                                        <Link
-                                                            href={showOrder(
-                                                                order.id,
-                                                            )}
-                                                        >
-                                                            <Eye />
-                                                        </Link>
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                            order={order}
+                                        />
                                     ))
                                 ) : (
                                     <tr>
-                                        <td
-                                            colSpan={9}
-                                            className="px-4 py-16 text-center text-muted-foreground"
-                                        >
-                                            No orders found.
+                                        <td colSpan={9}>
+                                            <EmptyOrders />
                                         </td>
                                     </tr>
                                 )}
@@ -261,16 +404,16 @@ export default function OrdersIndex({ orders, filters }: OrdersIndexProps) {
                     {orders.total > 0 && (
                         <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                             <p className="text-sm text-muted-foreground">
-                                Showing {orders.from} to {orders.to} of{' '}
-                                {orders.total}
+                                Halaman {orders.current_page} dari{' '}
+                                {orders.last_page}
                             </p>
 
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 overflow-x-auto">
                                 <PaginationButton
                                     page={orders.current_page - 1}
                                     disabled={orders.current_page === 1}
-                                    filters={{ search, status }}
-                                    ariaLabel="Previous page"
+                                    filters={activeFilters}
+                                    ariaLabel="Halaman sebelumnya"
                                 >
                                     <ChevronLeft />
                                 </PaginationButton>
@@ -279,7 +422,7 @@ export default function OrdersIndex({ orders, filters }: OrdersIndexProps) {
                                         key={page}
                                         page={page}
                                         active={page === orders.current_page}
-                                        filters={{ search, status }}
+                                        filters={activeFilters}
                                     >
                                         {page}
                                     </PaginationButton>
@@ -289,15 +432,15 @@ export default function OrdersIndex({ orders, filters }: OrdersIndexProps) {
                                     disabled={
                                         orders.current_page === orders.last_page
                                     }
-                                    filters={{ search, status }}
-                                    ariaLabel="Next page"
+                                    filters={activeFilters}
+                                    ariaLabel="Halaman berikutnya"
                                 >
                                     <ChevronRight />
                                 </PaginationButton>
                             </div>
                         </div>
                     )}
-                </div>
+                </section>
             </div>
         </>
     );
@@ -312,6 +455,255 @@ OrdersIndex.layout = {
     ],
 };
 
+function Metric({
+    label,
+    value,
+    detail,
+    icon: Icon,
+    className,
+}: {
+    label: string;
+    value: string;
+    detail: string;
+    icon: LucideIcon;
+    className?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                'min-w-0 rounded-lg border border-border/70 bg-card p-4 text-card-foreground shadow-xs',
+                className,
+            )}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">{label}</p>
+                    <div className="mt-2 text-2xl leading-tight font-semibold break-words">
+                        {value}
+                    </div>
+                </div>
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon className="size-4" />
+                </div>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">{detail}</p>
+        </div>
+    );
+}
+
+function StatusFilterButton({
+    label,
+    count,
+    active,
+    icon: Icon,
+    onClick,
+}: {
+    label: string;
+    count: number;
+    active: boolean;
+    icon?: LucideIcon;
+    onClick: () => void;
+}) {
+    return (
+        <Button
+            type="button"
+            variant={active ? 'default' : 'outline'}
+            className="min-w-max justify-start gap-2"
+            onClick={onClick}
+        >
+            {Icon && <Icon />}
+            <span>{label}</span>
+            <span
+                className={cn(
+                    'rounded-md px-1.5 py-0.5 text-xs tabular-nums',
+                    active
+                        ? 'bg-primary-foreground/20 text-primary-foreground'
+                        : 'bg-muted text-muted-foreground',
+                )}
+            >
+                {count}
+            </span>
+        </Button>
+    );
+}
+
+function OrderRow({ order }: { order: OrderListItem }) {
+    const StatusIcon = statusIcons[order.status];
+
+    return (
+        <tr className="transition-colors hover:bg-muted/30">
+            <td className="px-4 py-4">
+                <div className="flex size-10 items-center justify-center rounded-md bg-muted font-semibold tabular-nums">
+                    {order.queue_number}
+                </div>
+            </td>
+            <td className="px-4 py-4">
+                <div className="font-medium">{order.invoice_number}</div>
+                <div className="text-xs text-muted-foreground">
+                    {formatDateTime(order.created_at)}
+                </div>
+            </td>
+            <td className="px-4 py-4">
+                <span className="line-clamp-1">
+                    {order.customer_name || '-'}
+                </span>
+            </td>
+            <td className="hidden px-4 py-4 xl:table-cell">
+                {orderTypeLabels[order.order_type]}
+            </td>
+            <td className="px-4 py-4">
+                {paymentMethodLabel(order.payment_method)}
+            </td>
+            <td className="px-4 py-4 font-semibold whitespace-nowrap">
+                {formatRupiah(order.grand_total)}
+            </td>
+            <td className="px-4 py-4">
+                <Badge variant={statusBadgeVariant(order.status)}>
+                    <StatusIcon />
+                    {statusLabels[order.status]}
+                </Badge>
+            </td>
+            <td className="hidden px-4 py-4 xl:table-cell">
+                <span className="line-clamp-1">{order.cashier.name}</span>
+            </td>
+            <td className="px-4 py-4">
+                <OrderActions order={order} />
+            </td>
+        </tr>
+    );
+}
+
+function OrderCard({ order }: { order: OrderListItem }) {
+    const StatusIcon = statusIcons[order.status];
+
+    return (
+        <article className="grid gap-3 rounded-lg border border-border/70 bg-card p-3 text-card-foreground shadow-xs">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted font-semibold tabular-nums">
+                            {order.queue_number}
+                        </div>
+                        <div className="min-w-0">
+                            <h3 className="truncate font-semibold">
+                                {order.invoice_number}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                {formatDateTime(order.created_at)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <Badge variant={statusBadgeVariant(order.status)}>
+                    <StatusIcon />
+                    {statusLabels[order.status]}
+                </Badge>
+            </div>
+
+            <dl className="grid gap-2 text-sm">
+                <Detail label="Pelanggan" value={order.customer_name || '-'} />
+                <Detail
+                    label="Tipe"
+                    value={orderTypeLabels[order.order_type]}
+                />
+                <Detail
+                    label="Pembayaran"
+                    value={paymentMethodLabel(order.payment_method)}
+                />
+                <Detail label="Kasir" value={order.cashier.name} />
+                <Detail
+                    label="Total"
+                    value={formatRupiah(order.grand_total)}
+                    strong
+                />
+            </dl>
+
+            <OrderActions order={order} compact />
+        </article>
+    );
+}
+
+function Detail({
+    label,
+    value,
+    strong = false,
+}: {
+    label: string;
+    value: string;
+    strong?: boolean;
+}) {
+    return (
+        <div className="flex items-start justify-between gap-4">
+            <dt className="shrink-0 text-muted-foreground">{label}</dt>
+            <dd
+                className={cn(
+                    'min-w-0 text-right break-words',
+                    strong ? 'font-semibold' : 'font-medium',
+                )}
+            >
+                {value}
+            </dd>
+        </div>
+    );
+}
+
+function OrderActions({
+    order,
+    compact = false,
+}: {
+    order: OrderListItem;
+    compact?: boolean;
+}) {
+    return (
+        <div
+            className={cn(
+                'flex gap-2',
+                compact ? 'justify-stretch' : 'justify-end',
+            )}
+        >
+            {order.status === 'paid' && (
+                <Button
+                    asChild
+                    variant="outline"
+                    size={compact ? 'sm' : 'icon'}
+                    className={cn(compact && 'flex-1')}
+                    title="Cetak struk"
+                >
+                    <a
+                        href={receiptOrder.url(order.id)}
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        <Printer />
+                        {compact && <span>Cetak</span>}
+                    </a>
+                </Button>
+            )}
+            <Button
+                asChild
+                variant={compact ? 'default' : 'outline'}
+                size={compact ? 'sm' : 'icon'}
+                className={cn(compact && 'flex-1')}
+                title="Lihat order"
+            >
+                <Link href={showOrder(order.id)} prefetch>
+                    <Eye />
+                    {compact && <span>Detail</span>}
+                </Link>
+            </Button>
+        </div>
+    );
+}
+
+function EmptyOrders() {
+    return (
+        <div className="flex min-h-52 flex-col items-center justify-center gap-2 px-4 py-12 text-center text-muted-foreground">
+            <ReceiptText className="size-8" />
+            <span>Tidak ada order yang cocok.</span>
+        </div>
+    );
+}
+
 function PaginationButton({
     page,
     active = false,
@@ -323,7 +715,7 @@ function PaginationButton({
     page: number;
     active?: boolean;
     disabled?: boolean;
-    filters: { search: string; status: string };
+    filters: OrderFilters;
     ariaLabel?: string;
     children: ReactNode;
 }) {
@@ -344,15 +736,10 @@ function PaginationButton({
         >
             <Link
                 href={ordersIndex({
-                    query: {
-                        page,
-                        date: 'today',
-                        status: filters.status || undefined,
-                        search: filters.search || undefined,
-                    },
+                    query: queryParams({ ...filters, page }),
                 })}
                 preserveScroll
-                aria-label={ariaLabel ?? `Page ${page}`}
+                aria-label={ariaLabel ?? `Halaman ${page}`}
             >
                 {children}
             </Link>

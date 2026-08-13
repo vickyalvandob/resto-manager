@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Orders;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -12,15 +13,17 @@ use Inertia\Response;
 
 class OrderController extends Controller
 {
+    private const DATE_FILTERS = ['today', 'yesterday', 'all'];
+
+    private const STATUS_FILTERS = ['open', 'paid', 'void'];
+
     public function index(Request $request): Response
     {
-        $filters = [
-            'date' => (string) $request->query('date', 'today'),
-            'status' => (string) $request->query('status', ''),
-            'search' => trim((string) $request->query('search', '')),
-        ];
+        $filters = $this->filters($request);
+        $baseQuery = $this->filteredOrdersQuery($filters);
+        $summary = $this->summaryPayload(clone $baseQuery);
 
-        $orders = Order::query()
+        $orders = (clone $baseQuery)
             ->select([
                 'id',
                 'queue_number',
@@ -33,23 +36,10 @@ class OrderController extends Controller
                 'cashier_id',
                 'created_at',
             ])
-            ->with('cashier:id,name,email,role')
-            ->when($filters['date'] === 'today', fn ($query) => $query->whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()]))
-            ->when(in_array($filters['status'], ['open', 'paid', 'void'], true), fn ($query) => $query->where('status', $filters['status']))
-            ->when($filters['search'] !== '', function ($query) use ($filters): void {
-                $search = $filters['search'];
-
-                $query->where(function ($query) use ($search): void {
-                    $query
-                        ->where('invoice_number', 'like', "%{$search}%")
-                        ->orWhere('customer_name', 'like', "%{$search}%");
-
-                    if (is_numeric($search)) {
-                        $query->orWhere('queue_number', (int) $search);
-                    }
-                });
-            })
-            ->latest()
+            ->with('cashier:id,name')
+            ->when($filters['status'] !== '', fn (Builder $query) => $query->where('status', $filters['status']))
+            ->latest('created_at')
+            ->latest('id')
             ->paginate(15)
             ->withQueryString()
             ->through(fn (Order $order): array => $this->listPayload($order));
@@ -57,6 +47,7 @@ class OrderController extends Controller
         return Inertia::render('orders/index', [
             'orders' => $orders,
             'filters' => $filters,
+            'summary' => $summary,
         ]);
     }
 
@@ -89,6 +80,83 @@ class OrderController extends Controller
                 'id' => $order->cashier->id,
                 'name' => $order->cashier->name,
             ],
+        ];
+    }
+
+    /**
+     * @return array{date: string, status: string, search: string}
+     */
+    private function filters(Request $request): array
+    {
+        $date = (string) $request->query('date', 'today');
+        $status = (string) $request->query('status', '');
+
+        if (! in_array($date, self::DATE_FILTERS, true)) {
+            $date = 'today';
+        }
+
+        if (! in_array($status, self::STATUS_FILTERS, true)) {
+            $status = '';
+        }
+
+        return [
+            'date' => $date,
+            'status' => $status,
+            'search' => trim((string) $request->query('search', '')),
+        ];
+    }
+
+    /**
+     * @param  array{date: string, status: string, search: string}  $filters
+     * @return Builder<Order>
+     */
+    private function filteredOrdersQuery(array $filters): Builder
+    {
+        return Order::query()
+            ->when($filters['date'] !== 'all', function (Builder $query) use ($filters): void {
+                $day = $filters['date'] === 'yesterday' ? now()->subDay() : now();
+
+                $query->whereBetween('created_at', [
+                    $day->copy()->startOfDay(),
+                    $day->copy()->endOfDay(),
+                ]);
+            })
+            ->when($filters['search'] !== '', function (Builder $query) use ($filters): void {
+                $search = $filters['search'];
+
+                $query->where(function (Builder $query) use ($search): void {
+                    $query
+                        ->where('invoice_number', 'like', "%{$search}%")
+                        ->orWhere('customer_name', 'like', "%{$search}%");
+
+                    if (is_numeric($search)) {
+                        $query->orWhere('queue_number', (int) $search);
+                    }
+                });
+            });
+    }
+
+    /**
+     * @param  Builder<Order>  $query
+     * @return array{total_orders: int, open_orders: int, paid_orders: int, void_orders: int, paid_revenue: int}
+     */
+    private function summaryPayload(Builder $query): array
+    {
+        $summary = $query
+            ->toBase()
+            ->selectRaw('count(*) as total_orders')
+            ->selectRaw('count(case when status = ? then 1 end) as open_orders', ['open'])
+            ->selectRaw('count(case when status = ? then 1 end) as paid_orders', ['paid'])
+            ->selectRaw('count(case when status = ? then 1 end) as void_orders', ['void'])
+            ->selectRaw('coalesce(sum(case when status = ? then grand_total else 0 end), 0) as paid_revenue', ['paid'])
+            ->first();
+
+        return [
+            'total_orders' => (int) $summary->total_orders,
+            'open_orders' => (int) $summary->open_orders,
+            'paid_orders' => (int) $summary->paid_orders,
+            'void_orders' => (int) $summary->void_orders,
+            'paid_revenue' => (int) round((float) $summary->paid_revenue),
         ];
     }
 

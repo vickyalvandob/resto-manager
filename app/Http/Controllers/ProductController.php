@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\POS\GetAvailableMenu;
 use App\Http\Requests\ReorderProductsRequest;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
@@ -130,6 +131,7 @@ class ProductController extends Controller
         $categoryId = (int) $data['category_id'];
 
         DB::transaction(fn () => $this->updateProductOrder($categoryId, $data['products']));
+        GetAvailableMenu::flush();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Urutan produk diperbarui.')]);
 

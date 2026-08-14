@@ -3,7 +3,6 @@ import {
     BarChart3,
     ClipboardList,
     LayoutGrid,
-    Settings,
     ShoppingCart,
     Tags,
     UsersRound,
@@ -26,7 +25,6 @@ import { index as ordersIndex } from '@/routes/orders';
 import { index as posIndex } from '@/routes/pos';
 import { index as productsIndex } from '@/routes/products';
 import { index as reportsIndex } from '@/routes/reports';
-import { index as settingsIndex } from '@/routes/settings';
 import { index as usersIndex } from '@/routes/users';
 import type { NavItem } from '@/types';
 
@@ -60,11 +58,6 @@ const adminNavItems: NavItem[] = [
         title: 'Reports',
         href: reportsIndex(),
         icon: BarChart3,
-    },
-    {
-        title: 'Settings',
-        href: settingsIndex(),
-        icon: Settings,
     },
 ];
 

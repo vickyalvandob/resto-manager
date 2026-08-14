@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\POS\GetAvailableMenu;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,6 +21,17 @@ class Product extends Model
         'is_available' => true,
         'sort_order' => 0,
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(function (): void {
+            GetAvailableMenu::flush();
+        });
+
+        static::deleted(function (): void {
+            GetAvailableMenu::flush();
+        });
+    }
 
     protected function casts(): array
     {

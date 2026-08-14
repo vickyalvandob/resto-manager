@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Eloquent\Collection;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection as BaseCollection;
 use Inertia\Inertia;
 use Inertia\Response;
+use stdClass;
 
 /**
+ * @phpstan-type PaymentBreakdown array{cash: array{count: int, total: int}, qris: array{count: int, total: int}, transfer: array{count: int, total: int}}
+ * @phpstan-type DashboardStats array{revenue: int, paid_transactions: int, open_orders: int, paid_orders: int, void_orders: int}
  * @phpstan-type TransactionChartPoint array{period: string, label: string, transactions: int, revenue: int}
  * @phpstan-type TransactionChartSeries array{label: string, total_transactions: int, total_revenue: int, points: array<int, TransactionChartPoint>}
  */
@@ -17,41 +21,85 @@ class DashboardController extends Controller
 {
     public function __invoke(): Response
     {
-        $today = [now()->startOfDay(), now()->endOfDay()];
-
-        $paidToday = Order::query()
-            ->paid()
-            ->whereBetween('paid_at', $today);
-
-        $stats = [
-            'revenue' => (int) round((float) (clone $paidToday)->sum('grand_total')),
-            'paid_transactions' => (clone $paidToday)->count(),
-            'open_orders' => Order::query()->where('status', 'open')->whereBetween('created_at', $today)->count(),
-            'paid_orders' => Order::query()->where('status', 'paid')->whereBetween('created_at', $today)->count(),
-            'void_orders' => Order::query()->where('status', 'void')->whereBetween('created_at', $today)->count(),
-        ];
+        $todayStart = now()->startOfDay();
+        $todayEnd = now()->endOfDay();
+        $todayAggregate = $this->todayAggregate($todayStart, $todayEnd);
 
         return Inertia::render('dashboard', [
-            'stats' => $stats,
-            'paymentBreakdown' => $this->paymentBreakdown((clone $paidToday)->get(['payment_method', 'grand_total'])),
+            'stats' => $this->statsPayload($todayAggregate),
+            'paymentBreakdown' => $this->paymentBreakdownPayload($todayAggregate),
             'transactionChart' => $this->transactionChart(),
         ]);
     }
 
-    /**
-     * @param  Collection<int, Order>  $orders
-     * @return array<string, array{count: int, total: int}>
-     */
-    private function paymentBreakdown(Collection $orders): array
+    private function todayAggregate(CarbonInterface $start, CarbonInterface $end): stdClass
     {
-        return collect(['cash', 'qris', 'transfer'])
-            ->mapWithKeys(fn (string $paymentMethod): array => [
-                $paymentMethod => [
-                    'count' => $orders->where('payment_method', $paymentMethod)->count(),
-                    'total' => (int) round((float) $orders->where('payment_method', $paymentMethod)->sum('grand_total')),
-                ],
-            ])
-            ->all();
+        return Order::query()
+            ->where(function (Builder $query) use ($start, $end): void {
+                $query
+                    ->whereBetween('created_at', [$start, $end])
+                    ->orWhereBetween('paid_at', [$start, $end]);
+            })
+            ->toBase()
+            ->selectRaw('count(case when status = ? and created_at between ? and ? then 1 end) as open_orders', ['open', $start, $end])
+            ->selectRaw('count(case when status = ? and created_at between ? and ? then 1 end) as paid_orders', ['paid', $start, $end])
+            ->selectRaw('count(case when status = ? and created_at between ? and ? then 1 end) as void_orders', ['void', $start, $end])
+            ->selectRaw('count(case when status = ? and paid_at between ? and ? then 1 end) as paid_transactions', ['paid', $start, $end])
+            ->selectRaw('coalesce(sum(case when status = ? and paid_at between ? and ? then grand_total else 0 end), 0) as revenue', ['paid', $start, $end])
+            ->selectRaw('count(case when status = ? and paid_at between ? and ? and payment_method = ? then 1 end) as cash_count', ['paid', $start, $end, 'cash'])
+            ->selectRaw('coalesce(sum(case when status = ? and paid_at between ? and ? and payment_method = ? then grand_total else 0 end), 0) as cash_total', ['paid', $start, $end, 'cash'])
+            ->selectRaw('count(case when status = ? and paid_at between ? and ? and payment_method = ? then 1 end) as qris_count', ['paid', $start, $end, 'qris'])
+            ->selectRaw('coalesce(sum(case when status = ? and paid_at between ? and ? and payment_method = ? then grand_total else 0 end), 0) as qris_total', ['paid', $start, $end, 'qris'])
+            ->selectRaw('count(case when status = ? and paid_at between ? and ? and payment_method = ? then 1 end) as transfer_count', ['paid', $start, $end, 'transfer'])
+            ->selectRaw('coalesce(sum(case when status = ? and paid_at between ? and ? and payment_method = ? then grand_total else 0 end), 0) as transfer_total', ['paid', $start, $end, 'transfer'])
+            ->first() ?? (object) [
+                'open_orders' => 0,
+                'paid_orders' => 0,
+                'void_orders' => 0,
+                'paid_transactions' => 0,
+                'revenue' => 0,
+                'cash_count' => 0,
+                'cash_total' => 0,
+                'qris_count' => 0,
+                'qris_total' => 0,
+                'transfer_count' => 0,
+                'transfer_total' => 0,
+            ];
+    }
+
+    /**
+     * @return DashboardStats
+     */
+    private function statsPayload(stdClass $aggregate): array
+    {
+        return [
+            'revenue' => (int) round((float) $aggregate->revenue),
+            'paid_transactions' => (int) $aggregate->paid_transactions,
+            'open_orders' => (int) $aggregate->open_orders,
+            'paid_orders' => (int) $aggregate->paid_orders,
+            'void_orders' => (int) $aggregate->void_orders,
+        ];
+    }
+
+    /**
+     * @return PaymentBreakdown
+     */
+    private function paymentBreakdownPayload(stdClass $aggregate): array
+    {
+        return [
+            'cash' => [
+                'count' => (int) $aggregate->cash_count,
+                'total' => (int) round((float) $aggregate->cash_total),
+            ],
+            'qris' => [
+                'count' => (int) $aggregate->qris_count,
+                'total' => (int) round((float) $aggregate->qris_total),
+            ],
+            'transfer' => [
+                'count' => (int) $aggregate->transfer_count,
+                'total' => (int) round((float) $aggregate->transfer_total),
+            ],
+        ];
     }
 
     /**

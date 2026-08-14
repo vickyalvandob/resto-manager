@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
@@ -7,10 +7,11 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { cn, toUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit } from '@/routes/profile';
+import { edit as editReceipt } from '@/routes/receipt';
 import { edit as editSecurity } from '@/routes/security';
-import type { NavItem } from '@/types';
+import type { Auth, NavItem } from '@/types';
 
-const sidebarNavItems: NavItem[] = [
+const accountNavItems: NavItem[] = [
     {
         title: 'Profile',
         href: edit(),
@@ -29,13 +30,25 @@ const sidebarNavItems: NavItem[] = [
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
+    const { auth } = usePage<{ auth: Auth }>().props;
     const { isCurrentOrParentUrl } = useCurrentUrl();
+    const sidebarNavItems =
+        auth.user?.role === 'admin'
+            ? [
+                  ...accountNavItems,
+                  {
+                      title: 'Struk',
+                      href: editReceipt(),
+                      icon: null,
+                  },
+              ]
+            : accountNavItems;
 
     return (
         <div className="px-4 py-6">
             <Heading
                 title="Settings"
-                description="Manage your profile and account settings"
+                description="Manage your profile, account, and receipt settings"
             />
 
             <div className="flex flex-col lg:flex-row lg:space-x-12">

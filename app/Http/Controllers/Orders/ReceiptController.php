@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Orders;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,6 +45,7 @@ class ReceiptController extends Controller
                 'address' => $setting->address,
                 'phone' => $setting->phone,
                 'receipt_footer' => $setting->receipt_footer,
+                'logo_url' => $setting->logo ? Storage::url($setting->logo) : null,
             ],
         ]);
     }

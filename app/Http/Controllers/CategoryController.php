@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\POS\GetAvailableMenu;
 use App\Http\Requests\ReorderCategoriesRequest;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
@@ -66,6 +67,7 @@ class CategoryController extends Controller
         $categoryIds = $request->validated('categories');
 
         DB::transaction(fn () => $this->updateCategoryOrder($categoryIds));
+        GetAvailableMenu::flush();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Category order updated.')]);
 

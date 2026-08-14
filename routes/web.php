@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Orders\OrderController;
@@ -31,8 +30,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('products', ProductController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
 
         Route::get('reports', ReportController::class)->name('reports.index');
-        Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
-        Route::put('settings', [SettingController::class, 'update'])->name('settings.update');
     });
 
     Route::middleware('role:admin,cashier')->group(function () {

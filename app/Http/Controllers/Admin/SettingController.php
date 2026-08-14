@@ -14,7 +14,7 @@ class SettingController extends Controller
 {
     public function index(): Response
     {
-        return Inertia::render('store-settings/index', [
+        return Inertia::render('settings/receipt', [
             'setting' => $this->payload(Setting::current()),
         ]);
     }
@@ -43,7 +43,7 @@ class SettingController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Settings updated.')]);
 
-        return to_route('settings.index');
+        return to_route('receipt.edit');
     }
 
     /**

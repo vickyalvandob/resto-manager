@@ -36,6 +36,7 @@ type ReceiptSetting = {
     address: string | null;
     phone: string | null;
     receipt_footer: string | null;
+    logo_url: string | null;
 };
 
 type ReceiptProps = {
@@ -63,6 +64,13 @@ export default function Receipt({ order, setting }: ReceiptProps) {
 
             <main className="receipt-print mx-auto my-4 w-[58mm] bg-white p-4 text-[11px] leading-tight text-black shadow-sm">
                 <header className="text-center">
+                    {setting.logo_url && (
+                        <img
+                            src={setting.logo_url}
+                            alt={`${setting.store_name} logo`}
+                            className="mx-auto mb-2 h-12 max-w-24 object-contain"
+                        />
+                    )}
                     <h1 className="text-sm font-bold uppercase">
                         {setting.store_name}
                     </h1>

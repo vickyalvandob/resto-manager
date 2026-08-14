@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\POS\GetAvailableMenu;
 use Database\Factories\CategoryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -23,6 +24,17 @@ class Category extends Model
     protected $attributes = [
         'sort_order' => 0,
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(function (): void {
+            GetAvailableMenu::flush();
+        });
+
+        static::deleted(function (): void {
+            GetAvailableMenu::flush();
+        });
+    }
 
     /**
      * @param  Builder<Category>  $query

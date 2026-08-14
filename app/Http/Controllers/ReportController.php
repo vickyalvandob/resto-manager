@@ -25,7 +25,8 @@ class ReportController extends Controller
         $filters = $this->filters($request);
         [$start, $end] = $this->dateRange($filters);
         $paidOrders = $this->paidOrdersQuery($start, $end);
-        $summary = $this->summaryPayload(clone $paidOrders);
+        $aggregate = $this->aggregatePayload(clone $paidOrders);
+        $summary = $aggregate['summary'];
         $dailyTotals = $this->dailyTransactionTotals($start, $end);
 
         $orders = (clone $paidOrders)
@@ -54,7 +55,7 @@ class ReportController extends Controller
                 'to' => $end->toDateString(),
             ],
             'summary' => $summary,
-            'paymentBreakdown' => $this->paymentBreakdown(clone $paidOrders),
+            'paymentBreakdown' => $aggregate['paymentBreakdown'],
             'trend' => $this->trendPayload($dailyTotals, $start, $end, $summary),
             'orders' => $orders,
         ]);
@@ -123,56 +124,44 @@ class ReportController extends Controller
 
     /**
      * @param  Builder<Order>  $query
-     * @return array{total_revenue: int, total_paid_transactions: int, average_transaction: int}
+     * @return array{summary: array{total_revenue: int, total_paid_transactions: int, average_transaction: int}, paymentBreakdown: PaymentBreakdown}
      */
-    private function summaryPayload(Builder $query): array
+    private function aggregatePayload(Builder $query): array
     {
-        $summary = $query
+        $aggregate = $query
             ->toBase()
             ->selectRaw('count(*) as total_paid_transactions')
             ->selectRaw('coalesce(sum(grand_total), 0) as total_revenue')
+            ->selectRaw('count(case when payment_method = ? then 1 end) as cash_count', ['cash'])
+            ->selectRaw('coalesce(sum(case when payment_method = ? then grand_total else 0 end), 0) as cash_total', ['cash'])
+            ->selectRaw('count(case when payment_method = ? then 1 end) as qris_count', ['qris'])
+            ->selectRaw('coalesce(sum(case when payment_method = ? then grand_total else 0 end), 0) as qris_total', ['qris'])
+            ->selectRaw('count(case when payment_method = ? then 1 end) as transfer_count', ['transfer'])
+            ->selectRaw('coalesce(sum(case when payment_method = ? then grand_total else 0 end), 0) as transfer_total', ['transfer'])
             ->first();
 
-        $totalRevenue = (int) round((float) $summary->total_revenue);
-        $totalTransactions = (int) $summary->total_paid_transactions;
+        $totalRevenue = (int) round((float) $aggregate->total_revenue);
+        $totalTransactions = (int) $aggregate->total_paid_transactions;
 
         return [
-            'total_revenue' => $totalRevenue,
-            'total_paid_transactions' => $totalTransactions,
-            'average_transaction' => $totalTransactions > 0 ? (int) round($totalRevenue / $totalTransactions) : 0,
-        ];
-    }
-
-    /**
-     * @param  Builder<Order>  $query
-     * @return PaymentBreakdown
-     */
-    private function paymentBreakdown(Builder $query): array
-    {
-        $totals = $query
-            ->toBase()
-            ->selectRaw('payment_method')
-            ->selectRaw('count(*) as count')
-            ->selectRaw('coalesce(sum(grand_total), 0) as total')
-            ->groupBy('payment_method')
-            ->get()
-            ->keyBy('payment_method');
-        $cash = $totals->get('cash');
-        $qris = $totals->get('qris');
-        $transfer = $totals->get('transfer');
-
-        return [
-            'cash' => [
-                'count' => (int) ($cash->count ?? 0),
-                'total' => (int) round((float) ($cash->total ?? 0)),
+            'summary' => [
+                'total_revenue' => $totalRevenue,
+                'total_paid_transactions' => $totalTransactions,
+                'average_transaction' => $totalTransactions > 0 ? (int) round($totalRevenue / $totalTransactions) : 0,
             ],
-            'qris' => [
-                'count' => (int) ($qris->count ?? 0),
-                'total' => (int) round((float) ($qris->total ?? 0)),
-            ],
-            'transfer' => [
-                'count' => (int) ($transfer->count ?? 0),
-                'total' => (int) round((float) ($transfer->total ?? 0)),
+            'paymentBreakdown' => [
+                'cash' => [
+                    'count' => (int) $aggregate->cash_count,
+                    'total' => (int) round((float) $aggregate->cash_total),
+                ],
+                'qris' => [
+                    'count' => (int) $aggregate->qris_count,
+                    'total' => (int) round((float) $aggregate->qris_total),
+                ],
+                'transfer' => [
+                    'count' => (int) $aggregate->transfer_count,
+                    'total' => (int) round((float) $aggregate->transfer_total),
+                ],
             ],
         ];
     }

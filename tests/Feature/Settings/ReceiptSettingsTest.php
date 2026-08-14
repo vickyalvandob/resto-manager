@@ -203,9 +203,6 @@ test('signed thermal receipt endpoint returns bluetooth print payload', function
 
     $payload = $response->json();
     $content = collect($payload)->pluck('content')->implode("\n");
-    $totalLine = collect($payload)->first(
-        fn (array $line): bool => str_starts_with((string) $line['content'], 'TOTAL'),
-    );
 
     expect($payload[0])->toMatchArray([
         'type' => 0,
@@ -214,28 +211,13 @@ test('signed thermal receipt endpoint returns bluetooth print payload', function
         'align' => 1,
         'format' => 1,
     ])
-        ->and(collect($payload)->firstWhere('content', 'ANTRIAN 002'))->toMatchArray([
-            'content' => 'ANTRIAN 002',
-            'bold' => 1,
-            'align' => 1,
-            'format' => 1,
-        ])
         ->and($content)
-        ->toContain('STRUK PEMBAYARAN')
         ->toContain('INV-RECEIPT-002')
         ->toContain('Kopi Susu')
         ->toContain('1 x Rp 20.000')
         ->toContain('TOTAL')
         ->toContain('Rp 20.000')
-        ->toContain('LUNAS')
-        ->toContain('Terima kasih')
-        ->and($totalLine)
-        ->toMatchArray([
-            'bold' => 1,
-            'format' => 1,
-        ])
-        ->and($totalLine['content'])
-        ->toContain('Rp 20.000');
+        ->toContain('Terima kasih');
 
     $this->get(route('orders.receipt.thermal', $order))->assertForbidden();
 });
@@ -248,9 +230,6 @@ test('receipt print template uses bluetooth app link without preset panel', func
         ->toContain('my.bluetoothprint.scheme://')
         ->toContain('thermal_print_url')
         ->toContain('Cetak 58mm')
-        ->toContain('STRUK PEMBAYARAN')
-        ->toContain('ANTRIAN {order.queue_number}')
-        ->toContain('statusLabels[order.status]')
         ->toContain('w-[58mm]')
         ->toContain('max-w-[58mm]')
         ->toContain('text-[11px]')

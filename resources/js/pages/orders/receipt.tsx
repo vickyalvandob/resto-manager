@@ -58,19 +58,12 @@ const paymentMethodLabels = {
     transfer: 'Transfer',
 } satisfies Record<NonNullable<ReceiptOrder['payment_method']>, string>;
 
-const statusLabels = {
-    open: 'BELUM DIBAYAR',
-    paid: 'LUNAS',
-    void: 'DIBATALKAN',
-} satisfies Record<ReceiptOrder['status'], string>;
-
 export default function Receipt({
     order,
     setting,
     thermal_print_url,
 }: ReceiptProps) {
     const bluetoothPrintUrl = `my.bluetoothprint.scheme://${thermal_print_url}`;
-    const receiptDate = order.paid_at ?? order.created_at;
 
     return (
         <>
@@ -115,12 +108,6 @@ export default function Receipt({
                         {setting.phone && (
                             <p className="break-words">{setting.phone}</p>
                         )}
-                        <div className="pt-[1.5mm] text-[11px] font-bold">
-                            STRUK PEMBAYARAN
-                        </div>
-                        <div className="text-[15px] leading-tight font-bold">
-                            ANTRIAN {order.queue_number}
-                        </div>
                     </header>
 
                     <ReceiptDivider />
@@ -134,8 +121,12 @@ export default function Receipt({
                             value={order.invoice_number}
                         />
                         <ReceiptLine
-                            label="Waktu"
-                            value={formatDateTime(receiptDate)}
+                            label="Antrian"
+                            value={order.queue_number}
+                        />
+                        <ReceiptLine
+                            label="Tanggal"
+                            value={formatDateTime(order.created_at)}
                         />
                         <ReceiptLine
                             label="Layanan"
@@ -186,7 +177,7 @@ export default function Receipt({
                         ))}
                     </section>
 
-                    <ReceiptDivider strong />
+                    <ReceiptDivider />
 
                     <section aria-label="Ringkasan pembayaran">
                         <ReceiptLine
@@ -201,7 +192,7 @@ export default function Receipt({
                         />
                     </section>
 
-                    <ReceiptDivider strong />
+                    <ReceiptDivider />
 
                     <section aria-label="Pembayaran" className="space-y-0.5">
                         <ReceiptLine
@@ -220,9 +211,11 @@ export default function Receipt({
                             label="Kembali"
                             value={formatRupiah(order.change_amount)}
                         />
-                        <div className="pt-1 text-center text-[11px] font-bold tracking-normal">
-                            {statusLabels[order.status]}
-                        </div>
+                        {order.status !== 'paid' && (
+                            <div className="pt-1 text-center text-[11px] font-bold tracking-normal">
+                                {order.status.toUpperCase()}
+                            </div>
+                        )}
                     </section>
 
                     {setting.receipt_footer && (
@@ -243,15 +236,8 @@ export default function Receipt({
     );
 }
 
-function ReceiptDivider({ strong = false }: { strong?: boolean }) {
-    return (
-        <div
-            className={cn(
-                'my-[2mm] border-t border-black',
-                strong && 'border-t-2',
-            )}
-        />
-    );
+function ReceiptDivider() {
+    return <div className="my-[2mm] border-t border-black" />;
 }
 
 function ReceiptLine({

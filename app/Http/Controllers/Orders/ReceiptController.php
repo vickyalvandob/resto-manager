@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Orders;
 
+use App\Actions\Orders\BuildThermalReceiptPayload;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Setting;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -47,6 +50,23 @@ class ReceiptController extends Controller
                 'receipt_footer' => $setting->receipt_footer,
                 'logo_url' => $setting->logo ? Storage::url($setting->logo) : null,
             ],
+            'thermal_print_url' => URL::temporarySignedRoute(
+                'orders.receipt.thermal',
+                now()->addMinutes(10),
+                ['order' => $order],
+            ),
         ]);
+    }
+
+    public function thermal(Order $order, BuildThermalReceiptPayload $payload): JsonResponse
+    {
+        $order->loadMissing(['cashier:id,name', 'items']);
+
+        return response()->json(
+            $payload->handle($order, Setting::current()),
+            200,
+            [],
+            JSON_FORCE_OBJECT,
+        );
     }
 }

@@ -5,6 +5,7 @@ use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('settings index redirects to profile settings', function () {
@@ -154,6 +155,93 @@ test('receipt page exposes configured logo url', function () {
             ->where('setting.store_name', 'Kopi Dartech')
             ->where('setting.logo_url', Storage::url($setting->logo))
             ->where('order.cashier.name', 'Sinta')
+            ->where('thermal_print_url', fn (string $url): bool => str_contains($url, route('orders.receipt.thermal', $order, false))
+                && str_contains($url, 'signature='))
             ->has('order.items', 1)
         );
+});
+
+test('signed thermal receipt endpoint returns bluetooth print payload', function () {
+    $cashier = User::factory()->cashier()->create(['name' => 'Sinta']);
+    Setting::query()->create([
+        'store_name' => 'Kopi Dartech',
+        'address' => 'Jl. Mawar 1',
+        'phone' => '08123456789',
+        'receipt_footer' => 'Terima kasih',
+    ]);
+
+    $order = Order::query()->create([
+        'queue_number' => 2,
+        'invoice_number' => 'INV-RECEIPT-002',
+        'customer_name' => 'Budi',
+        'order_type' => 'dine_in',
+        'subtotal' => 20000,
+        'grand_total' => 20000,
+        'payment_method' => 'cash',
+        'paid_amount' => 25000,
+        'change_amount' => 5000,
+        'status' => 'paid',
+        'cashier_id' => $cashier->id,
+        'paid_at' => now(),
+    ]);
+
+    $order->items()->create([
+        'product_name' => 'Kopi Susu',
+        'price' => 20000,
+        'qty' => 1,
+        'subtotal' => 20000,
+        'note' => 'Less ice',
+    ]);
+
+    $url = URL::temporarySignedRoute(
+        'orders.receipt.thermal',
+        now()->addMinutes(10),
+        ['order' => $order],
+    );
+
+    $response = $this->get($url)->assertOk();
+
+    $payload = $response->json();
+    $content = collect($payload)->pluck('content')->implode("\n");
+
+    expect($payload[0])->toMatchArray([
+        'type' => 0,
+        'content' => 'Kopi Dartech',
+        'bold' => 1,
+        'align' => 1,
+        'format' => 1,
+    ])
+        ->and($content)
+        ->toContain('INV-RECEIPT-002')
+        ->toContain('Kopi Susu')
+        ->toContain('1 x Rp 20.000')
+        ->toContain('TOTAL')
+        ->toContain('Rp 20.000')
+        ->toContain('Terima kasih');
+
+    $this->get(route('orders.receipt.thermal', $order))->assertForbidden();
+});
+
+test('receipt print template uses bluetooth app link without preset panel', function () {
+    $receiptPage = file_get_contents(resource_path('js/pages/orders/receipt.tsx'));
+    $stylesheet = file_get_contents(resource_path('css/app.css'));
+
+    expect($receiptPage)
+        ->toContain('my.bluetoothprint.scheme://')
+        ->toContain('thermal_print_url')
+        ->toContain('Cetak 58mm')
+        ->toContain('w-[58mm]')
+        ->toContain('max-w-[58mm]')
+        ->toContain('text-[11px]')
+        ->toContain('grid-cols-[16mm_minmax(0,1fr)]')
+        ->not->toContain('Preset print Windows')
+        ->not->toContain('window.print()');
+
+    expect($stylesheet)
+        ->toContain('@page receipt')
+        ->toContain('size: 58mm 200mm')
+        ->toContain('width: 58mm !important')
+        ->toContain('max-width: 58mm !important')
+        ->toContain('padding: 3mm 4.5mm 4mm !important')
+        ->toContain('font-family: Arial');
 });

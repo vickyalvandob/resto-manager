@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CashTransaction;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -218,11 +219,13 @@ test('admin can delete users that are safe to delete', function () {
     $this->assertModelMissing($cashier);
 });
 
-test('admin cannot delete self or users with order history', function () {
+test('admin cannot delete self or users with transaction history', function () {
     $admin = User::factory()->admin()->create();
     $cashier = User::factory()->cashier()->create();
+    $cashierWithCashHistory = User::factory()->cashier()->create();
 
     createOrderForCashier($cashier);
+    CashTransaction::factory()->for($cashierWithCashHistory, 'user')->create();
 
     $this
         ->actingAs($admin)
@@ -236,6 +239,14 @@ test('admin cannot delete self or users with order history', function () {
         ->assertRedirect(route('users.index'));
 
     $this->assertModelExists($cashier);
+
+    $this
+        ->actingAs($admin)
+        ->from(route('users.index'))
+        ->delete(route('users.destroy', $cashierWithCashHistory))
+        ->assertRedirect(route('users.index'));
+
+    $this->assertModelExists($cashierWithCashHistory);
 });
 
 function createOrderForCashier(User $cashier): Order

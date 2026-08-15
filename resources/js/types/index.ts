@@ -155,6 +155,7 @@ export interface ManagedUser {
     created_at: string | null;
     updated_at: string | null;
     orders_count: number;
+    cash_transactions_count: number;
     can_delete: boolean;
 }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CashTransactionController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Orders\OrderController;
@@ -32,6 +33,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('products/reorder', [ProductController::class, 'reorder'])->name('products.reorder');
         Route::put('products/{product}/availability', [ProductController::class, 'toggleAvailability'])->name('products.availability');
         Route::resource('products', ProductController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
+
+        Route::resource('cash-transactions', CashTransactionController::class)->only(['index', 'store', 'destroy']);
 
         Route::get('reports', ReportController::class)->name('reports.index');
     });

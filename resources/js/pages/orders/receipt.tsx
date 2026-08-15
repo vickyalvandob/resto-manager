@@ -85,7 +85,7 @@ export default function Receipt({
                     <Button size="sm" className="min-w-0 flex-1" asChild>
                         <a href={bluetoothPrintUrl}>
                             <Printer />
-                            Cetak 58mm
+                            Cetak
                         </a>
                     </Button>
                 </div>

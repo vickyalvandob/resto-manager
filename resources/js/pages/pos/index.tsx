@@ -1,10 +1,12 @@
 import { Head, router } from '@inertiajs/react';
 import {
     Banknote,
+    ChevronUp,
     CreditCard,
     ImageIcon,
     Minus,
     PackageSearch,
+    PencilLine,
     Plus,
     Printer,
     ReceiptText,
@@ -16,6 +18,7 @@ import {
     Trash2,
     Utensils,
     WalletCards,
+    X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -80,6 +83,7 @@ type CartPanelProps = {
     onReset: () => void;
     onSave: () => void;
     onCheckout: () => void;
+    showHeaderIcon?: boolean;
 };
 
 const paymentLabels: Record<PaymentMethod, string> = {
@@ -137,7 +141,12 @@ function CartPanel({
     onReset,
     onSave,
     onCheckout,
+    showHeaderIcon = true,
 }: CartPanelProps) {
+    const [expandedNotes, setExpandedNotes] = useState<Record<number, boolean>>(
+        {},
+    );
+
     return (
         <section
             className={cn(
@@ -152,13 +161,18 @@ function CartPanel({
                         {cartItemLabel(cartItemsCount)}
                     </p>
                 </div>
-                <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <div
+                    className={cn(
+                        'flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary',
+                        !showHeaderIcon && 'hidden',
+                    )}
+                >
                     <ShoppingCart className="size-5" />
                 </div>
             </div>
 
             <div
-                className="min-h-0 flex-1 overflow-y-auto p-2"
+                className="min-h-0 flex-1 overflow-y-auto p-2 scrollbar-gutter-stable"
                 scroll-region=""
             >
                 {cart.length === 0 ? (
@@ -179,6 +193,8 @@ function CartPanel({
                                             <img
                                                 src={item.image_url}
                                                 alt={item.name}
+                                                loading="lazy"
+                                                decoding="async"
                                                 className="aspect-square size-full object-cover"
                                             />
                                         ) : (
@@ -207,7 +223,7 @@ function CartPanel({
                                             type="button"
                                             size="icon"
                                             variant="outline"
-                                            className="size-8"
+                                            className="size-11 lg:size-8"
                                             onClick={() =>
                                                 onQtyChange(
                                                     item.product_id,
@@ -218,14 +234,14 @@ function CartPanel({
                                         >
                                             <Minus />
                                         </Button>
-                                        <div className="flex size-8 items-center justify-center rounded-md border text-sm font-semibold">
+                                        <div className="flex size-11 items-center justify-center rounded-md border text-sm font-semibold lg:size-8">
                                             {item.qty}
                                         </div>
                                         <Button
                                             type="button"
                                             size="icon"
                                             variant="outline"
-                                            className="size-8"
+                                            className="size-11 lg:size-8"
                                             onClick={() =>
                                                 onQtyChange(
                                                     item.product_id,
@@ -241,7 +257,7 @@ function CartPanel({
                                         type="button"
                                         size="icon"
                                         variant="ghost"
-                                        className="size-8 text-muted-foreground hover:text-destructive"
+                                        className="size-11 text-muted-foreground hover:text-destructive lg:size-8"
                                         onClick={() =>
                                             onQtyChange(item.product_id, 0)
                                         }
@@ -251,17 +267,42 @@ function CartPanel({
                                     </Button>
                                 </div>
 
-                                <Input
-                                    value={item.note}
-                                    onChange={(event) =>
-                                        onNoteChange(
-                                            item.product_id,
-                                            event.target.value,
-                                        )
-                                    }
-                                    placeholder="Catatan item"
-                                    className="h-8"
-                                />
+                                <div className="grid gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-9 justify-start px-2 text-muted-foreground"
+                                        onClick={() =>
+                                            setExpandedNotes((notes) => ({
+                                                ...notes,
+                                                [item.product_id]: !(
+                                                    notes[item.product_id] ||
+                                                    item.note !== ''
+                                                ),
+                                            }))
+                                        }
+                                    >
+                                        <PencilLine className="size-4" />
+                                        {item.note === ''
+                                            ? 'Tambah catatan'
+                                            : 'Edit catatan'}
+                                    </Button>
+                                    {(expandedNotes[item.product_id] ||
+                                        item.note !== '') && (
+                                        <Input
+                                            value={item.note}
+                                            onChange={(event) =>
+                                                onNoteChange(
+                                                    item.product_id,
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Catatan item"
+                                            className="h-10 lg:h-8"
+                                        />
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -286,21 +327,21 @@ function CartPanel({
                         <span>{formatRupiah(cartTotal)}</span>
                     </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_minmax(0,1.15fr)] gap-2 lg:grid-cols-3">
                     <Button
                         type="button"
                         variant="outline"
-                        className="h-10"
+                        className="h-11 px-0 lg:h-10 lg:px-4"
                         disabled={cart.length === 0 || isSubmitting}
                         onClick={onReset}
                     >
                         <RotateCcw />
-                        Reset
+                        <span className="sr-only lg:not-sr-only">Reset</span>
                     </Button>
                     <Button
                         type="button"
                         variant="outline"
-                        className="h-10"
+                        className="h-11 lg:h-10"
                         disabled={cart.length === 0 || isSubmitting}
                         onClick={onSave}
                     >
@@ -309,7 +350,7 @@ function CartPanel({
                     </Button>
                     <Button
                         type="button"
-                        className="h-10"
+                        className="h-11 lg:h-10"
                         disabled={cart.length === 0 || isSubmitting}
                         onClick={onCheckout}
                     >
@@ -335,6 +376,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
     const [errors, setErrors] = useState<CheckoutErrors>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [successOrder, setSuccessOrder] = useState<OrderSuccess | null>(null);
+    const [cartOpen, setCartOpen] = useState(false);
 
     const cartTotal = cart.reduce(
         (total, item) => total + item.price * item.qty,
@@ -383,12 +425,29 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
             setCart([]);
             setPaymentOpen(false);
             setCheckoutMode('pay');
+            setCartOpen(false);
             setSuccessOrder(order);
             setPaidAmount('');
             setCustomerName('');
             setOrderType('dine_in');
             setErrors({});
         });
+    }, []);
+
+    useEffect(() => {
+        const tabletViewport = window.matchMedia('(min-width: 768px)');
+        const closeMobileCart = (): void => {
+            if (tabletViewport.matches) {
+                setCartOpen(false);
+            }
+        };
+
+        closeMobileCart();
+        tabletViewport.addEventListener('change', closeMobileCart);
+
+        return () => {
+            tabletViewport.removeEventListener('change', closeMobileCart);
+        };
     }, []);
 
     function addProduct(product: PosProduct): void {
@@ -495,6 +554,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
         setCheckoutMode(mode);
         setErrors({});
+        setCartOpen(false);
         setPaymentOpen(true);
     }
 
@@ -521,11 +581,11 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
         <>
             <Head title="POS" />
 
-            <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col gap-2 overflow-y-auto bg-muted/30 p-2 sm:gap-3 sm:p-3 lg:overflow-hidden lg:p-4">
-                <div className="grid min-h-full flex-1 grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)] gap-2 sm:gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_27rem]">
+            <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col gap-2 overflow-hidden bg-muted/30 p-2 pb-0 sm:gap-3 sm:p-3 sm:pb-0 md:pb-3 lg:p-4">
+                <div className="grid min-h-0 flex-1 gap-2 sm:gap-3 md:grid-cols-[minmax(0,1fr)_20rem] lg:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[minmax(0,1fr)_27rem]">
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
-                        <div className="grid shrink-0 gap-2 border-b p-2 sm:p-3">
-                            <div className="flex gap-2 overflow-x-auto pb-1">
+                        <div className="grid shrink-0 gap-2 border-b p-2 sm:p-3 md:flex md:items-center md:gap-3">
+                            <div className="flex gap-2 overflow-x-auto pb-1 md:min-w-0 md:flex-1 md:pb-0">
                                 <Button
                                     type="button"
                                     variant={
@@ -533,7 +593,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                             ? 'default'
                                             : 'outline'
                                     }
-                                    className="h-9 shrink-0"
+                                    className="h-11 shrink-0 md:h-10 xl:h-9"
                                     onClick={() => setActiveCategory('all')}
                                 >
                                     Semua
@@ -556,7 +616,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                 ? 'default'
                                                 : 'outline'
                                         }
-                                        className="h-9 shrink-0"
+                                        className="h-11 shrink-0 md:h-10 xl:h-9"
                                         onClick={() =>
                                             setActiveCategory(category.id)
                                         }
@@ -576,7 +636,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                     </Button>
                                 ))}
                             </div>
-                            <div className="relative">
+                            <div className="relative md:w-72 lg:w-80 xl:w-96">
                                 <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
                                     value={search}
@@ -584,14 +644,24 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                         setSearch(event.target.value)
                                     }
                                     placeholder="Cari produk atau kategori"
-                                    className="h-10 pl-9"
+                                    className="h-11 pr-10 pl-9 md:h-10"
                                 />
+                                {search !== '' && (
+                                    <button
+                                        type="button"
+                                        className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                        onClick={() => setSearch('')}
+                                        aria-label="Bersihkan pencarian"
+                                    >
+                                        <X className="size-4" />
+                                    </button>
+                                )}
                             </div>
                         </div>
 
                         {filteredProducts.length > 0 ? (
                             <div
-                                className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+                                className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 scrollbar-gutter-stable min-[480px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                                 scroll-region=""
                             >
                                 {filteredProducts.map((product) => {
@@ -602,13 +672,15 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                             key={product.id}
                                             type="button"
                                             onClick={() => addProduct(product)}
-                                            className="group relative grid min-h-[4.5rem] grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2 text-left shadow-xs transition hover:border-primary/50 hover:bg-muted/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:flex sm:min-h-0 sm:flex-col sm:gap-0 sm:p-0"
+                                            className="group relative grid min-h-[5.25rem] grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2 text-left shadow-xs transition hover:border-primary/50 hover:bg-muted/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:flex sm:min-h-0 sm:flex-col sm:gap-0 sm:p-0"
                                         >
                                             <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted sm:aspect-[5/3] sm:h-auto sm:w-full sm:rounded-none">
                                                 {product.image_url ? (
                                                     <img
                                                         src={product.image_url}
                                                         alt={product.name}
+                                                        loading="lazy"
+                                                        decoding="async"
                                                         className="size-full object-cover"
                                                     />
                                                 ) : (
@@ -617,7 +689,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                     </div>
                                                 )}
                                                 {quantity > 0 && (
-                                                    <Badge className="absolute top-1.5 right-1.5 hidden shadow-sm sm:inline-flex">
+                                                    <Badge className="absolute top-1.5 right-1.5 shadow-sm">
                                                         x{quantity}
                                                     </Badge>
                                                 )}
@@ -637,7 +709,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                             product.price,
                                                         )}
                                                     </span>
-                                                    <span className="hidden size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition group-hover:bg-primary/90 sm:flex">
+                                                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition group-hover:bg-primary/90 sm:size-7">
                                                         <Plus className="size-4" />
                                                     </span>
                                                 </div>
@@ -660,7 +732,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         cartTotal={cartTotal}
                         errors={errors}
                         isSubmitting={isSubmitting}
-                        className="min-h-0"
+                        className="hidden min-h-0 md:flex"
                         onQtyChange={changeQty}
                         onNoteChange={changeNote}
                         onReset={resetCart}
@@ -668,11 +740,84 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         onCheckout={() => openCheckout('pay')}
                     />
                 </div>
+
+                <div className="shrink-0 border-t bg-background p-2 shadow-[0_-8px_20px_-18px_rgba(0,0,0,0.45)] md:hidden">
+                    <InputError
+                        message={
+                            errors.items ||
+                            errors['items.0.product_id'] ||
+                            errors.order_type
+                        }
+                    />
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            className="flex h-12 min-w-0 flex-1 items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 text-left focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+                            disabled={cart.length === 0}
+                            onClick={() => setCartOpen(true)}
+                        >
+                            <span className="min-w-0">
+                                <span className="block text-xs text-muted-foreground">
+                                    {cartItemLabel(cartItemsCount)}
+                                </span>
+                                <span className="block truncate text-base font-semibold">
+                                    {formatRupiah(cartTotal)}
+                                </span>
+                            </span>
+                            <ChevronUp className="size-5 shrink-0 text-muted-foreground" />
+                        </button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="size-12"
+                            disabled={cart.length === 0 || isSubmitting}
+                            onClick={() => openCheckout('save')}
+                        >
+                            <Save />
+                            <span className="sr-only">Simpan order</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            className="h-12 min-w-28"
+                            disabled={cart.length === 0 || isSubmitting}
+                            onClick={() => openCheckout('pay')}
+                        >
+                            <ReceiptText />
+                            Bayar
+                        </Button>
+                    </div>
+                </div>
             </div>
 
+            <Dialog open={cartOpen} onOpenChange={setCartOpen}>
+                <DialogContent className="top-auto bottom-0 left-0 max-h-[85svh] w-full max-w-none translate-x-0 translate-y-0 gap-0 rounded-t-xl rounded-b-none border-x-0 border-b-0 p-0 md:hidden">
+                    <DialogTitle className="sr-only">
+                        Keranjang pesanan
+                    </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Daftar item pesanan dan aksi checkout.
+                    </DialogDescription>
+                    <CartPanel
+                        cart={cart}
+                        cartItemsCount={cartItemsCount}
+                        cartTotal={cartTotal}
+                        errors={errors}
+                        isSubmitting={isSubmitting}
+                        className="max-h-[85svh] rounded-none border-0"
+                        onQtyChange={changeQty}
+                        onNoteChange={changeNote}
+                        onReset={resetCart}
+                        onSave={() => openCheckout('save')}
+                        onCheckout={() => openCheckout('pay')}
+                        showHeaderIcon={false}
+                    />
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
+                <DialogContent className="top-auto bottom-0 left-0 max-h-[92svh] w-full max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-t-xl rounded-b-none border-x-0 border-b-0 p-0 sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-w-xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:gap-4 sm:overflow-visible sm:rounded-lg sm:border sm:p-6">
+                    <DialogHeader className="border-b px-4 py-4 pr-10 text-left sm:border-0 sm:p-0 sm:pr-0">
                         <DialogTitle>
                             {checkoutMode === 'save'
                                 ? 'Detail order'
@@ -685,7 +830,10 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid gap-4">
+                    <div
+                        className="grid max-h-[calc(92svh-9rem)] gap-4 overflow-y-auto px-4 py-4 sm:max-h-none sm:overflow-visible sm:p-0"
+                        scroll-region=""
+                    >
                         <div className="grid gap-3">
                             <div className="grid gap-1.5">
                                 <Label htmlFor="customer_name">Pelanggan</Label>
@@ -697,7 +845,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                     }
                                     placeholder="Nama pelanggan (opsional)"
                                     autoComplete="off"
-                                    className="h-10"
+                                    className="h-12 sm:h-10"
                                 />
                                 <InputError message={errors.customer_name} />
                             </div>
@@ -715,7 +863,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                         ? 'default'
                                                         : 'outline'
                                                 }
-                                                className="h-10"
+                                                className="h-11 sm:h-10"
                                                 onClick={() =>
                                                     setOrderType(value)
                                                 }
@@ -749,7 +897,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                             <>
                                 <div className="grid gap-2">
                                     <Label>Metode pembayaran</Label>
-                                    <div className="grid gap-2 sm:grid-cols-3">
+                                    <div className="grid grid-cols-3 gap-2">
                                         {paymentOptions.map(
                                             ({ value, label, icon: Icon }) => (
                                                 <Button
@@ -760,7 +908,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                             ? 'default'
                                                             : 'outline'
                                                     }
-                                                    className="h-11"
+                                                    className="h-12 sm:h-11"
                                                     onClick={() =>
                                                         setPaymentMethod(value)
                                                     }
@@ -795,6 +943,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                     )
                                                 }
                                                 className={cn(
+                                                    'h-12 sm:h-10',
                                                     isCashPaymentIncomplete &&
                                                         'border-destructive',
                                                 )}
@@ -803,7 +952,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                 message={errors.paid_amount}
                                             />
                                         </div>
-                                        <div className="flex flex-wrap gap-2">
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                             {suggestedCashAmounts.map(
                                                 (amount) => (
                                                     <Button
@@ -811,6 +960,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
+                                                        className="h-11"
                                                         onClick={() =>
                                                             setPaidAmount(
                                                                 String(amount),
@@ -843,10 +993,11 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         )}
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="border-t bg-background p-4 sm:border-0 sm:p-0">
                         <Button
                             type="button"
                             variant="outline"
+                            className="h-11"
                             onClick={() => setPaymentOpen(false)}
                             disabled={isSubmitting}
                         >
@@ -854,6 +1005,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         </Button>
                         <Button
                             type="button"
+                            className="h-11"
                             onClick={confirmCheckout}
                             disabled={
                                 isSubmitting ||

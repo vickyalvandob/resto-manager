@@ -28,7 +28,7 @@ class UserController extends Controller
 
         $users = User::query()
             ->select(['id', 'name', 'email', 'role', 'email_verified_at', 'created_at', 'updated_at'])
-            ->withCount('orders')
+            ->withCount(['orders', 'cashTransactions'])
             ->when($filters['search'] !== '', function ($query) use ($filters): void {
                 $search = $filters['search'];
 
@@ -45,6 +45,7 @@ class UserController extends Controller
             ->through(fn (User $user): array => [
                 ...$this->userPayload($user),
                 'orders_count' => (int) $user->getAttribute('orders_count'),
+                'cash_transactions_count' => (int) $user->getAttribute('cash_transactions_count'),
                 'can_delete' => $this->canDeleteFromList($currentUser, $user, $adminCount),
             ]);
 
@@ -102,8 +103,8 @@ class UserController extends Controller
     {
         Gate::authorize('delete', $user);
 
-        if ($user->orders()->exists()) {
-            Inertia::flash('toast', ['type' => 'error', 'message' => __('User has order history and cannot be deleted.')]);
+        if ($user->orders()->exists() || $user->cashTransactions()->exists()) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => __('User has transaction history and cannot be deleted.')]);
 
             return back();
         }
@@ -152,6 +153,7 @@ class UserController extends Controller
             return false;
         }
 
-        return ((int) $user->getAttribute('orders_count')) === 0;
+        return ((int) $user->getAttribute('orders_count')) === 0
+            && ((int) $user->getAttribute('cash_transactions_count')) === 0;
     }
 }

@@ -6,6 +6,7 @@ import {
     ShoppingCart,
     Tags,
     UsersRound,
+    WalletCards,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -21,6 +22,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as cashTransactionsIndex } from '@/routes/cash-transactions';
 import { index as ordersIndex } from '@/routes/orders';
 import { index as posIndex } from '@/routes/pos';
 import { index as productsIndex } from '@/routes/products';
@@ -53,6 +55,11 @@ const adminNavItems: NavItem[] = [
         title: 'Menu',
         href: productsIndex(),
         icon: Tags,
+    },
+    {
+        title: 'Arus Kas',
+        href: cashTransactionsIndex(),
+        icon: WalletCards,
     },
     {
         title: 'Reports',

@@ -68,4 +68,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Order::class, 'cashier_id');
     }
+
+    /**
+     * @return HasMany<CashTransaction, $this>
+     */
+    public function cashTransactions(): HasMany
+    {
+        return $this->hasMany(CashTransaction::class);
+    }
 }

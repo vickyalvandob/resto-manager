@@ -177,23 +177,46 @@ test('orders index includes summary and keeps status filtering separate', functi
         );
 });
 
-test('pos page keeps menu and cart in compact scroll regions', function () {
+test('pos page prioritizes mobile menu with drawer checkout controls', function () {
     $posPage = file_get_contents(resource_path('js/pages/pos/index.tsx'));
 
     expect($posPage)
         ->toContain('h-[calc(100svh-4rem)]')
-        ->toContain('grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)]')
+        ->toContain('overflow-hidden bg-muted/30 p-2 pb-0')
+        ->toContain('md:pb-3')
+        ->toContain('md:grid-cols-[minmax(0,1fr)_20rem]')
         ->toContain('lg:grid-cols-[minmax(0,1fr)_24rem]')
-        ->toContain('overflow-y-auto')
-        ->toContain('grid min-h-0 flex-1 auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5')
-        ->toContain('group relative grid min-h-[4.5rem] grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2')
+        ->toContain('className="hidden min-h-0 md:flex"')
+        ->toContain('md:flex md:items-center md:gap-3')
+        ->toContain('md:min-w-0 md:flex-1 md:pb-0')
+        ->toContain('md:w-72 lg:w-80 xl:w-96')
+        ->toContain('open={cartOpen}')
+        ->toContain("window.matchMedia('(min-width: 768px)')")
+        ->toContain('onClick={() => setCartOpen(true)}')
+        ->toContain('top-auto bottom-0 left-0 max-h-[85svh]')
+        ->toContain('p-0 md:hidden')
+        ->toContain('Keranjang pesanan')
+        ->toContain('showHeaderIcon={false}')
+        ->toContain('shrink-0 border-t bg-background p-2')
+        ->toContain('md:hidden')
+        ->toContain('className="h-12 min-w-28"')
+        ->toContain('grid grid-cols-[2.75rem_minmax(0,1fr)_minmax(0,1.15fr)]')
+        ->toContain('lg:grid-cols-3')
+        ->toContain('scrollbar-gutter-stable')
+        ->toContain('grid min-h-0 flex-1 auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 scrollbar-gutter-stable min-[480px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5')
+        ->toContain('group relative grid min-h-[5.25rem] grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2')
         ->toContain('size-14 shrink-0 overflow-hidden rounded-md bg-muted')
+        ->toContain('loading="lazy"')
+        ->toContain('aria-label="Bersihkan pencarian"')
         ->toContain('hidden truncate text-xs text-muted-foreground sm:block')
-        ->toContain('hidden size-7 shrink-0 items-center justify-center rounded-md bg-primary')
-        ->toContain('sm:grid-cols-3')
+        ->toContain('flex size-9 shrink-0 items-center justify-center rounded-md bg-primary')
+        ->toContain('top-auto bottom-0 left-0 max-h-[92svh]')
+        ->toContain('className="grid grid-cols-3 gap-2"')
+        ->toContain('sm:max-w-xl')
+        ->toContain('className="grid grid-cols-2 gap-2 sm:grid-cols-4"')
         ->toContain('xl:grid-cols-4')
         ->toContain('2xl:grid-cols-5')
-        ->toContain('className="grid shrink-0 gap-2 border-b p-2 sm:p-3"')
+        ->toContain('className="grid shrink-0 gap-2 border-b p-2 sm:p-3 md:flex md:items-center md:gap-3"')
         ->toContain("type CheckoutMode = 'save' | 'pay'")
         ->toContain('id="customer_name"')
         ->toContain("openCheckout('save')")
@@ -201,23 +224,30 @@ test('pos page keeps menu and cart in compact scroll regions', function () {
 
     expect($posPage)
         ->not->toContain('id="pos_customer_name"')
+        ->not->toContain('grid-rows-[minmax(0,1fr)_minmax(0,0.9fr)]')
+        ->not->toContain('grid min-h-full flex-1')
+        ->not->toContain('className="hidden min-h-0 lg:flex"')
+        ->not->toContain('lg:hidden')
+        ->not->toContain('sm:grid-cols-3 xl:grid-cols-4')
         ->not->toContain('<h1 className="text-xl font-semibold">POS</h1>')
         ->not->toContain('<h2 className="truncate font-semibold">Menu</h2>')
         ->not->toContain('{filteredProducts.length} hasil')
         ->not->toContain('grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-y-auto p-2 sm:grid-cols-3')
         ->not->toContain('flex min-h-24 flex-row')
         ->not->toContain('h-24 w-28 shrink-0')
+        ->not->toContain('hidden size-7 shrink-0 items-center justify-center rounded-md bg-primary')
+        ->not->toContain('flex flex-wrap gap-2')
         ->not->toContain('xl:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1fr)]')
         ->not->toContain('className="grid shrink-0 gap-2 rounded-lg border bg-background p-2 sm:p-3"');
 
-    $categoryFilterPosition = strpos($posPage, 'className="flex gap-2 overflow-x-auto pb-1"');
+    $categoryFilterPosition = strpos($posPage, 'className="flex gap-2 overflow-x-auto pb-1 md:min-w-0 md:flex-1 md:pb-0"');
     $searchInputPosition = strpos($posPage, 'placeholder="Cari produk atau kategori"');
 
     expect($categoryFilterPosition)
         ->not->toBeFalse()
         ->toBeLessThan($searchInputPosition);
 
-    expect(substr_count($posPage, 'scroll-region=""'))->toBeGreaterThanOrEqual(2);
+    expect(substr_count($posPage, 'scroll-region=""'))->toBeGreaterThanOrEqual(3);
 });
 
 test('order detail actions close dialogs and avoid duplicated overview cards', function () {

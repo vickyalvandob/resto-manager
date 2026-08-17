@@ -48,6 +48,10 @@ test('menu management uses alert dialogs and single create controls', function (
 
     expect($menuPage)
         ->toContain("from '@/components/ui/alert-dialog'")
+        ->toContain("from '@/hooks/use-initials'")
+        ->toContain('getInitials(product.name)')
+        ->toContain('bg-primary/10 px-1 text-sm font-semibold text-primary')
+        ->not->toContain('ImageIcon')
         ->not->toContain('window.confirm')
         ->not->toContain('window.alert');
 

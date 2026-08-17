@@ -3,7 +3,6 @@ import {
     Eye,
     EyeOff,
     GripVertical,
-    ImageIcon,
     LoaderCircle,
     Pencil,
     Plus,
@@ -38,6 +37,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useInitials } from '@/hooks/use-initials';
 import { formatRupiah } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import { index as productsIndex } from '@/routes/products';
@@ -220,6 +220,7 @@ export default function ProductsIndex({
     categories,
     products,
 }: ProductsIndexProps) {
+    const getInitials = useInitials();
     const [activeCategoryId, setActiveCategoryId] = useState<number | null>(
         () => categories[0]?.id ?? null,
     );
@@ -764,8 +765,8 @@ export default function ProductsIndex({
                                                     className="size-12 rounded-md border object-cover sm:size-14"
                                                 />
                                             ) : (
-                                                <div className="flex size-12 items-center justify-center rounded-md border bg-muted text-muted-foreground sm:size-14">
-                                                    <ImageIcon className="size-5" />
+                                                <div className="flex size-12 items-center justify-center rounded-md border bg-primary/10 px-1 text-sm font-semibold text-primary sm:size-14 sm:text-base">
+                                                    {getInitials(product.name)}
                                                 </div>
                                             )}
 

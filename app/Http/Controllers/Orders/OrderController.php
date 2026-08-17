@@ -18,7 +18,8 @@ class OrderController extends Controller
 
     public function index(Request $request): Response
     {
-        $filters = $this->filters($request);
+        $isSimpleCashierView = $request->user()?->isCashier() ?? false;
+        $filters = $this->filters($request, $isSimpleCashierView);
         $baseQuery = $this->filteredOrdersQuery($filters);
         $summary = $this->summaryPayload(clone $baseQuery);
 
@@ -47,6 +48,7 @@ class OrderController extends Controller
             'orders' => $orders,
             'filters' => $filters,
             'summary' => $summary,
+            'isSimpleCashierView' => $isSimpleCashierView,
         ]);
     }
 
@@ -85,10 +87,16 @@ class OrderController extends Controller
     /**
      * @return array{date: string, status: string, search: string}
      */
-    private function filters(Request $request): array
+    private function filters(Request $request, bool $isSimpleCashierView): array
     {
         $date = (string) $request->query('date', 'today');
         $status = (string) $request->query('status', '');
+        $search = trim((string) $request->query('search', ''));
+
+        if ($isSimpleCashierView) {
+            $date = 'today';
+            $search = '';
+        }
 
         if (! in_array($date, self::DATE_FILTERS, true)) {
             $date = 'today';
@@ -101,7 +109,7 @@ class OrderController extends Controller
         return [
             'date' => $date,
             'status' => $status,
-            'search' => trim((string) $request->query('search', '')),
+            'search' => $search,
         ];
     }
 

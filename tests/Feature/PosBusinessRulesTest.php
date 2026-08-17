@@ -91,6 +91,7 @@ test('open order detail includes available products for adding items', function 
 });
 
 test('orders index includes summary and keeps status filtering separate', function () {
+    $admin = User::factory()->admin()->create();
     $cashier = User::factory()->cashier()->create();
 
     Order::query()->create([
@@ -139,13 +140,14 @@ test('orders index includes summary and keeps status filtering separate', functi
         ->save();
 
     $this
-        ->actingAs($cashier)
+        ->actingAs($admin)
         ->get(route('orders.index', ['date' => 'today']))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('orders/index')
             ->where('filters.date', 'today')
             ->where('filters.status', '')
+            ->where('isSimpleCashierView', false)
             ->where('summary.total_orders', 2)
             ->where('summary.open_orders', 1)
             ->where('summary.paid_orders', 1)
@@ -156,7 +158,7 @@ test('orders index includes summary and keeps status filtering separate', functi
         );
 
     $this
-        ->actingAs($cashier)
+        ->actingAs($admin)
         ->get(route('orders.index', [
             'date' => 'all',
             'status' => 'paid',
@@ -177,6 +179,78 @@ test('orders index includes summary and keeps status filtering separate', functi
         );
 });
 
+test('cashier orders index is simplified to today status filters', function () {
+    $cashier = User::factory()->cashier()->create();
+
+    Order::query()->create([
+        'queue_number' => 1,
+        'invoice_number' => 'INV-CASHIER-TODAY-OPEN',
+        'customer_name' => 'Ana',
+        'order_type' => 'dine_in',
+        'subtotal' => 25000,
+        'grand_total' => 25000,
+        'status' => 'open',
+        'cashier_id' => $cashier->id,
+    ]);
+
+    Order::query()->create([
+        'queue_number' => 2,
+        'invoice_number' => 'INV-CASHIER-TODAY-PAID',
+        'customer_name' => 'Budi',
+        'order_type' => 'take_away',
+        'subtotal' => 50000,
+        'grand_total' => 50000,
+        'payment_method' => 'qris',
+        'paid_amount' => 50000,
+        'status' => 'paid',
+        'cashier_id' => $cashier->id,
+        'paid_at' => now(),
+    ]);
+
+    $voidOrder = Order::query()->create([
+        'queue_number' => 3,
+        'invoice_number' => 'INV-CASHIER-YESTERDAY-VOID',
+        'customer_name' => 'Citra',
+        'order_type' => 'dine_in',
+        'subtotal' => 15000,
+        'grand_total' => 15000,
+        'status' => 'void',
+        'cashier_id' => $cashier->id,
+        'void_reason' => 'Cancelled',
+    ]);
+
+    $voidOrder
+        ->forceFill([
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+            'voided_at' => now()->subDay(),
+        ])
+        ->save();
+
+    $this
+        ->actingAs($cashier)
+        ->get(route('orders.index', [
+            'date' => 'all',
+            'status' => 'paid',
+            'search' => 'NO-MATCH',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('orders/index')
+            ->where('filters.date', 'today')
+            ->where('filters.status', 'paid')
+            ->where('filters.search', '')
+            ->where('isSimpleCashierView', true)
+            ->where('summary.total_orders', 2)
+            ->where('summary.open_orders', 1)
+            ->where('summary.paid_orders', 1)
+            ->where('summary.void_orders', 0)
+            ->where('orders.total', 1)
+            ->where('orders.data.0.invoice_number', 'INV-CASHIER-TODAY-PAID')
+            ->etc()
+        );
+});
+
 test('pos page prioritizes mobile menu with drawer checkout controls', function () {
     $posPage = file_get_contents(resource_path('js/pages/pos/index.tsx'));
 
@@ -187,9 +261,6 @@ test('pos page prioritizes mobile menu with drawer checkout controls', function 
         ->toContain('md:grid-cols-[minmax(0,1fr)_20rem]')
         ->toContain('lg:grid-cols-[minmax(0,1fr)_24rem]')
         ->toContain('className="hidden min-h-0 md:flex"')
-        ->toContain('md:flex md:items-center md:gap-3')
-        ->toContain('md:min-w-0 md:flex-1 md:pb-0')
-        ->toContain('md:w-72 lg:w-80 xl:w-96')
         ->toContain('open={cartOpen}')
         ->toContain("window.matchMedia('(min-width: 768px)')")
         ->toContain('onClick={() => setCartOpen(true)}')
@@ -203,7 +274,7 @@ test('pos page prioritizes mobile menu with drawer checkout controls', function 
         ->toContain('grid grid-cols-[2.75rem_minmax(0,1fr)_minmax(0,1.15fr)]')
         ->toContain('lg:grid-cols-3')
         ->toContain('scrollbar-gutter-stable')
-        ->toContain('grid min-h-0 flex-1 auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 scrollbar-gutter-stable min-[480px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5')
+        ->toContain('grid min-h-0 flex-1 scrollbar-gutter-stable auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 min-[480px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5')
         ->toContain('group relative grid min-h-[5.25rem] grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2')
         ->toContain('size-14 shrink-0 overflow-hidden rounded-md bg-muted')
         ->toContain('loading="lazy"')
@@ -216,7 +287,16 @@ test('pos page prioritizes mobile menu with drawer checkout controls', function 
         ->toContain('className="grid grid-cols-2 gap-2 sm:grid-cols-4"')
         ->toContain('xl:grid-cols-4')
         ->toContain('2xl:grid-cols-5')
-        ->toContain('className="grid shrink-0 gap-2 border-b p-2 sm:p-3 md:flex md:items-center md:gap-3"')
+        ->toContain('useInitials')
+        ->toContain('getInitials(')
+        ->toContain('product.name,')
+        ->toContain('const defaultCategoryId = categories[0]?.id ?? null')
+        ->toContain('useState<number | null>')
+        ->toContain('const activeCategoryId = useMemo(')
+        ->toContain('product.category_id === activeCategoryId')
+        ->toContain('bg-primary/10 px-1 text-base font-semibold text-primary sm:text-xl')
+        ->toContain('className="grid shrink-0 gap-2 border-b p-2 sm:p-3"')
+        ->toContain('className="flex gap-2 overflow-x-auto pb-1"')
         ->toContain("type CheckoutMode = 'save' | 'pay'")
         ->toContain('id="customer_name"')
         ->toContain("openCheckout('save')")
@@ -237,10 +317,17 @@ test('pos page prioritizes mobile menu with drawer checkout controls', function 
         ->not->toContain('h-24 w-28 shrink-0')
         ->not->toContain('hidden size-7 shrink-0 items-center justify-center rounded-md bg-primary')
         ->not->toContain('flex flex-wrap gap-2')
+        ->not->toContain('md:flex md:items-center md:gap-3')
+        ->not->toContain('md:min-w-0 md:flex-1 md:pb-0')
+        ->not->toContain('md:w-72 lg:w-80 xl:w-96')
+        ->not->toContain("number | 'all'")
+        ->not->toContain("activeCategory === 'all'")
+        ->not->toContain("setActiveCategory('all')")
+        ->not->toContain('Semua')
         ->not->toContain('xl:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1fr)]')
         ->not->toContain('className="grid shrink-0 gap-2 rounded-lg border bg-background p-2 sm:p-3"');
 
-    $categoryFilterPosition = strpos($posPage, 'className="flex gap-2 overflow-x-auto pb-1 md:min-w-0 md:flex-1 md:pb-0"');
+    $categoryFilterPosition = strpos($posPage, 'className="flex gap-2 overflow-x-auto pb-1"');
     $searchInputPosition = strpos($posPage, 'placeholder="Cari produk atau kategori"');
 
     expect($categoryFilterPosition)
@@ -293,12 +380,26 @@ test('orders index page exposes operational summary filters and mobile cards', f
         ->toContain('Total Order')
         ->toContain('Omzet Paid')
         ->toContain('dateFilterOptions')
+        ->toContain('isSimpleCashierView')
+        ->toContain('Order hari ini dengan filter status cepat.')
+        ->toContain('{!isSimpleCashierView && (')
         ->toContain('StatusFilterButton')
         ->toContain('OrderCard')
         ->toContain('lg:hidden')
         ->toContain('hidden overflow-x-auto lg:block')
         ->toContain('receiptOrder.url(order.id)')
         ->toContain('prefetch');
+
+    $metricPosition = strpos($orderIndexPage, '<Metric');
+    $metricGuardPosition = strrpos(
+        substr($orderIndexPage, 0, $metricPosition ?: 0),
+        '{!isSimpleCashierView && ('
+    );
+
+    expect($metricPosition)
+        ->not->toBeFalse()
+        ->and($metricGuardPosition)
+        ->not->toBeFalse();
 });
 
 test('unavailable products cannot be checked out manually', function () {

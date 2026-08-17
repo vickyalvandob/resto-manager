@@ -56,6 +56,7 @@ type OrdersIndexProps = {
     orders: PaginatedData<OrderListItem>;
     filters: OrderFilters;
     summary: OrderSummary;
+    isSimpleCashierView: boolean;
 };
 
 const dateFilterOptions: Array<{ value: OrderDateFilter; label: string }> = [
@@ -142,6 +143,7 @@ export default function OrdersIndex({
     orders,
     filters,
     summary,
+    isSimpleCashierView,
 }: OrdersIndexProps) {
     const [search, setSearch] = useState(filters.search);
     const [status, setStatus] = useState<OrderStatusFilter>(filters.status);
@@ -204,7 +206,9 @@ export default function OrdersIndex({
                     <div className="min-w-0">
                         <h1 className="text-2xl font-semibold">Orders</h1>
                         <p className="text-sm text-muted-foreground">
-                            Pantau status order, kasir, dan pembayaran.
+                            {isSimpleCashierView
+                                ? 'Order hari ini dengan filter status cepat.'
+                                : 'Pantau status order, kasir, dan pembayaran.'}
                         </p>
                     </div>
                     <Badge
@@ -216,92 +220,96 @@ export default function OrdersIndex({
                     </Badge>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <Metric
-                        label="Total Order"
-                        value={String(summary.total_orders)}
-                        detail={dateFilterLabel(date)}
-                        icon={ReceiptText}
-                    />
-                    <Metric
-                        label="Open"
-                        value={String(summary.open_orders)}
-                        detail="Belum dibayar"
-                        icon={Clock3}
-                    />
-                    <Metric
-                        label="Omzet Paid"
-                        value={formatRupiah(summary.paid_revenue)}
-                        detail={`${summary.paid_orders} transaksi lunas`}
-                        icon={WalletCards}
-                        className="sm:col-span-2 xl:col-span-1"
-                    />
-                    <Metric
-                        label="Void"
-                        value={String(summary.void_orders)}
-                        detail="Order dibatalkan"
-                        icon={Ban}
-                    />
-                </div>
+                {!isSimpleCashierView && (
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <Metric
+                            label="Total Order"
+                            value={String(summary.total_orders)}
+                            detail={dateFilterLabel(date)}
+                            icon={ReceiptText}
+                        />
+                        <Metric
+                            label="Open"
+                            value={String(summary.open_orders)}
+                            detail="Belum dibayar"
+                            icon={Clock3}
+                        />
+                        <Metric
+                            label="Omzet Paid"
+                            value={formatRupiah(summary.paid_revenue)}
+                            detail={`${summary.paid_orders} transaksi lunas`}
+                            icon={WalletCards}
+                            className="sm:col-span-2 xl:col-span-1"
+                        />
+                        <Metric
+                            label="Void"
+                            value={String(summary.void_orders)}
+                            detail="Order dibatalkan"
+                            icon={Ban}
+                        />
+                    </div>
+                )}
 
                 <section className="overflow-hidden rounded-lg border border-border/70 bg-background">
-                    <div className="grid gap-3 border-b px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-end">
-                        <form
-                            onSubmit={applyFilters}
-                            className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto_auto] sm:items-end"
-                        >
-                            <div className="grid gap-2">
-                                <Label htmlFor="orders_search">Cari</Label>
-                                <div className="relative">
-                                    <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                                    <Input
-                                        id="orders_search"
-                                        value={search}
-                                        onChange={(event) =>
-                                            setSearch(event.target.value)
-                                        }
-                                        placeholder="Invoice, antrean, pelanggan"
-                                        className="pl-9"
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="orders_date">Tanggal</Label>
-                                <select
-                                    id="orders_date"
-                                    value={date}
-                                    onChange={(event) =>
-                                        filterByDate(
-                                            event.target
-                                                .value as OrderDateFilter,
-                                        )
-                                    }
-                                    className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                                >
-                                    {dateFilterOptions.map((option) => (
-                                        <option
-                                            key={option.value}
-                                            value={option.value}
-                                        >
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <Button type="submit">
-                                <Search />
-                                Terapkan
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                disabled={!hasActiveFilters}
-                                onClick={resetFilters}
+                    {!isSimpleCashierView && (
+                        <div className="grid gap-3 border-b px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                            <form
+                                onSubmit={applyFilters}
+                                className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto_auto] sm:items-end"
                             >
-                                Reset
-                            </Button>
-                        </form>
-                    </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="orders_search">Cari</Label>
+                                    <div className="relative">
+                                        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Input
+                                            id="orders_search"
+                                            value={search}
+                                            onChange={(event) =>
+                                                setSearch(event.target.value)
+                                            }
+                                            placeholder="Invoice, antrean, pelanggan"
+                                            className="pl-9"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="orders_date">Tanggal</Label>
+                                    <select
+                                        id="orders_date"
+                                        value={date}
+                                        onChange={(event) =>
+                                            filterByDate(
+                                                event.target
+                                                    .value as OrderDateFilter,
+                                            )
+                                        }
+                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                    >
+                                        {dateFilterOptions.map((option) => (
+                                            <option
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <Button type="submit">
+                                    <Search />
+                                    Terapkan
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={!hasActiveFilters}
+                                    onClick={resetFilters}
+                                >
+                                    Reset
+                                </Button>
+                            </form>
+                        </div>
+                    )}
 
                     <div className="flex gap-2 overflow-x-auto px-4 py-3">
                         <StatusFilterButton

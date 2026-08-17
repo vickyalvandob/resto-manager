@@ -3,7 +3,6 @@ import {
     Banknote,
     ChevronUp,
     CreditCard,
-    ImageIcon,
     Minus,
     PackageSearch,
     PencilLine,
@@ -36,6 +35,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useInitials } from '@/hooks/use-initials';
 import { formatRupiah } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import { index as posIndex } from '@/routes/pos';
@@ -143,6 +143,7 @@ function CartPanel({
     onCheckout,
     showHeaderIcon = true,
 }: CartPanelProps) {
+    const getInitials = useInitials();
     const [expandedNotes, setExpandedNotes] = useState<Record<number, boolean>>(
         {},
     );
@@ -172,7 +173,7 @@ function CartPanel({
             </div>
 
             <div
-                className="min-h-0 flex-1 overflow-y-auto p-2 scrollbar-gutter-stable"
+                className="min-h-0 flex-1 scrollbar-gutter-stable overflow-y-auto p-2"
                 scroll-region=""
             >
                 {cart.length === 0 ? (
@@ -198,8 +199,8 @@ function CartPanel({
                                                 className="aspect-square size-full object-cover"
                                             />
                                         ) : (
-                                            <div className="flex aspect-square size-full items-center justify-center text-muted-foreground">
-                                                <ImageIcon className="size-5" />
+                                            <div className="flex aspect-square size-full items-center justify-center bg-primary/10 px-1 text-sm font-semibold text-primary">
+                                                {getInitials(item.name)}
                                             </div>
                                         )}
                                     </div>
@@ -364,8 +365,12 @@ function CartPanel({
 }
 
 export default function PosIndex({ categories, products }: PosIndexProps) {
+    const getInitials = useInitials();
     const [search, setSearch] = useState('');
-    const [activeCategory, setActiveCategory] = useState<number | 'all'>('all');
+    const defaultCategoryId = categories[0]?.id ?? null;
+    const [activeCategory, setActiveCategory] = useState<number | null>(
+        defaultCategoryId,
+    );
     const [cart, setCart] = useState<CartItem[]>([]);
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('pay');
@@ -396,14 +401,19 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
             return counts;
         }, {});
     }, [products]);
+    const activeCategoryId = useMemo(() => {
+        return categories.some((category) => category.id === activeCategory)
+            ? activeCategory
+            : defaultCategoryId;
+    }, [activeCategory, categories, defaultCategoryId]);
 
     const filteredProducts = useMemo(() => {
         const normalizedSearch = search.trim().toLowerCase();
 
         return products.filter((product) => {
             const matchesCategory =
-                activeCategory === 'all' ||
-                product.category_id === activeCategory;
+                activeCategoryId === null ||
+                product.category_id === activeCategoryId;
             const matchesSearch =
                 normalizedSearch === '' ||
                 product.name.toLowerCase().includes(normalizedSearch) ||
@@ -411,7 +421,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
             return matchesCategory && matchesSearch;
         });
-    }, [activeCategory, products, search]);
+    }, [activeCategoryId, products, search]);
 
     useEffect(() => {
         return router.on('flash', (event) => {
@@ -584,35 +594,14 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
             <div className="flex h-[calc(100svh-4rem)] min-h-0 flex-col gap-2 overflow-hidden bg-muted/30 p-2 pb-0 sm:gap-3 sm:p-3 sm:pb-0 md:pb-3 lg:p-4">
                 <div className="grid min-h-0 flex-1 gap-2 sm:gap-3 md:grid-cols-[minmax(0,1fr)_20rem] lg:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[minmax(0,1fr)_27rem]">
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-background">
-                        <div className="grid shrink-0 gap-2 border-b p-2 sm:p-3 md:flex md:items-center md:gap-3">
-                            <div className="flex gap-2 overflow-x-auto pb-1 md:min-w-0 md:flex-1 md:pb-0">
-                                <Button
-                                    type="button"
-                                    variant={
-                                        activeCategory === 'all'
-                                            ? 'default'
-                                            : 'outline'
-                                    }
-                                    className="h-11 shrink-0 md:h-10 xl:h-9"
-                                    onClick={() => setActiveCategory('all')}
-                                >
-                                    Semua
-                                    <Badge
-                                        variant={
-                                            activeCategory === 'all'
-                                                ? 'secondary'
-                                                : 'outline'
-                                        }
-                                    >
-                                        {products.length}
-                                    </Badge>
-                                </Button>
+                        <div className="grid shrink-0 gap-2 border-b p-2 sm:p-3">
+                            <div className="flex gap-2 overflow-x-auto pb-1">
                                 {categories.map((category) => (
                                     <Button
                                         key={category.id}
                                         type="button"
                                         variant={
-                                            activeCategory === category.id
+                                            activeCategoryId === category.id
                                                 ? 'default'
                                                 : 'outline'
                                         }
@@ -624,7 +613,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                         {category.name}
                                         <Badge
                                             variant={
-                                                activeCategory === category.id
+                                                activeCategoryId === category.id
                                                     ? 'secondary'
                                                     : 'outline'
                                             }
@@ -636,7 +625,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                     </Button>
                                 ))}
                             </div>
-                            <div className="relative md:w-72 lg:w-80 xl:w-96">
+                            <div className="relative">
                                 <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
                                     value={search}
@@ -661,7 +650,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
                         {filteredProducts.length > 0 ? (
                             <div
-                                className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 scrollbar-gutter-stable min-[480px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+                                className="grid min-h-0 flex-1 scrollbar-gutter-stable auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 min-[480px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                                 scroll-region=""
                             >
                                 {filteredProducts.map((product) => {
@@ -684,8 +673,10 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                         className="size-full object-cover"
                                                     />
                                                 ) : (
-                                                    <div className="flex size-full items-center justify-center text-muted-foreground">
-                                                        <ImageIcon className="size-7" />
+                                                    <div className="flex size-full items-center justify-center bg-primary/10 px-1 text-base font-semibold text-primary sm:text-xl">
+                                                        {getInitials(
+                                                            product.name,
+                                                        )}
                                                     </div>
                                                 )}
                                                 {quantity > 0 && (

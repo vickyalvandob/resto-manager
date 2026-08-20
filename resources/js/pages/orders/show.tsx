@@ -572,7 +572,10 @@ export default function OrderShow({ order, products }: OrderShowProps) {
                         }
                     }}
                 >
-                    <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-4xl">
+                    <DialogContent
+                        className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-4xl"
+                        onOpenAutoFocus={(event) => event.preventDefault()}
+                    >
                         <DialogHeader>
                             <DialogTitle>Tambah Pesanan</DialogTitle>
                             <DialogDescription>
@@ -835,7 +838,10 @@ export default function OrderShow({ order, products }: OrderShowProps) {
             )}
 
             <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent
+                    className="sm:max-w-lg"
+                    onOpenAutoFocus={(event) => event.preventDefault()}
+                >
                     <DialogHeader>
                         <DialogTitle>Bayar Sekarang</DialogTitle>
                         <DialogDescription>
@@ -971,7 +977,9 @@ export default function OrderShow({ order, products }: OrderShowProps) {
             </Dialog>
 
             <Dialog open={voidOpen} onOpenChange={setVoidOpen}>
-                <DialogContent>
+                <DialogContent
+                    onOpenAutoFocus={(event) => event.preventDefault()}
+                >
                     <DialogHeader>
                         <DialogTitle>Void Order</DialogTitle>
                         <DialogDescription>

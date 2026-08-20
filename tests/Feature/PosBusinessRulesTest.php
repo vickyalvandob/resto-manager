@@ -267,19 +267,21 @@ test('pos page prioritizes mobile menu with drawer checkout controls', function 
         ->toContain('top-auto bottom-0 left-0 max-h-[85svh]')
         ->toContain('p-0 md:hidden')
         ->toContain('Keranjang pesanan')
-        ->toContain('showHeaderIcon={false}')
+        ->toContain('openOrdersCount={openOrdersCount}')
+        ->toContain("query: { date: 'today', status: 'open' }")
+        ->toContain('ClipboardList')
         ->toContain('shrink-0 border-t bg-background p-2')
         ->toContain('md:hidden')
         ->toContain('className="h-12 min-w-28"')
         ->toContain('grid grid-cols-[2.75rem_minmax(0,1fr)_minmax(0,1.15fr)]')
         ->toContain('lg:grid-cols-3')
         ->toContain('scrollbar-gutter-stable')
-        ->toContain('grid min-h-0 flex-1 scrollbar-gutter-stable auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 min-[480px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5')
-        ->toContain('group relative grid min-h-[5.25rem] grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2')
+        ->toContain('grid min-h-0 flex-1 scrollbar-gutter-stable auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 min-[480px]:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5')
+        ->toContain('group relative grid min-h-[5.25rem] touch-manipulation grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2')
         ->toContain('size-14 shrink-0 overflow-hidden rounded-md bg-muted')
         ->toContain('loading="lazy"')
         ->toContain('aria-label="Bersihkan pencarian"')
-        ->toContain('hidden truncate text-xs text-muted-foreground sm:block')
+        ->toContain('touch-manipulation')
         ->toContain('flex size-9 shrink-0 items-center justify-center rounded-md bg-primary')
         ->toContain('top-auto bottom-0 left-0 max-h-[92svh]')
         ->toContain('className="grid grid-cols-3 gap-2"')
@@ -299,6 +301,7 @@ test('pos page prioritizes mobile menu with drawer checkout controls', function 
         ->toContain('className="flex gap-2 overflow-x-auto pb-1"')
         ->toContain("type CheckoutMode = 'save' | 'pay'")
         ->toContain('id="customer_name"')
+        ->toContain('onOpenAutoFocus={(event) => event.preventDefault()}')
         ->toContain("openCheckout('save')")
         ->toContain("openCheckout('pay')");
 
@@ -324,11 +327,13 @@ test('pos page prioritizes mobile menu with drawer checkout controls', function 
         ->not->toContain("activeCategory === 'all'")
         ->not->toContain("setActiveCategory('all')")
         ->not->toContain('Semua')
+        ->not->toContain('hidden truncate text-xs text-muted-foreground sm:block')
+        ->not->toContain('showHeaderIcon')
         ->not->toContain('xl:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1fr)]')
         ->not->toContain('className="grid shrink-0 gap-2 rounded-lg border bg-background p-2 sm:p-3"');
 
     $categoryFilterPosition = strpos($posPage, 'className="flex gap-2 overflow-x-auto pb-1"');
-    $searchInputPosition = strpos($posPage, 'placeholder="Cari produk atau kategori"');
+    $searchInputPosition = strpos($posPage, 'placeholder="Cari menu"');
 
     expect($categoryFilterPosition)
         ->not->toBeFalse()
@@ -368,6 +373,7 @@ test('order detail actions close dialogs and avoid duplicated overview cards', f
         ->toContain('paymentOptions.map')
         ->toContain('Metode pembayaran')
         ->toContain('Konfirmasi Pembayaran')
+        ->toContain('onOpenAutoFocus={(event) => event.preventDefault()}')
         ->not->toContain('OverviewCard')
         ->not->toContain('grid gap-3 sm:grid-cols-2 xl:grid-cols-4');
 });

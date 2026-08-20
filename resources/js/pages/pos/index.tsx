@@ -1,7 +1,8 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
     Banknote,
     ChevronUp,
+    ClipboardList,
     CreditCard,
     Minus,
     PackageSearch,
@@ -38,6 +39,7 @@ import { Label } from '@/components/ui/label';
 import { useInitials } from '@/hooks/use-initials';
 import { formatRupiah } from '@/lib/currency';
 import { cn } from '@/lib/utils';
+import { index as ordersIndex } from '@/routes/orders';
 import { index as posIndex } from '@/routes/pos';
 import type {
     OrderSuccess,
@@ -50,6 +52,7 @@ import type {
 type PosIndexProps = {
     categories: PosCategory[];
     products: PosProduct[];
+    openOrdersCount: number;
 };
 
 type CartItem = {
@@ -77,13 +80,13 @@ type CartPanelProps = {
     cartTotal: number;
     errors: CheckoutErrors;
     isSubmitting: boolean;
+    openOrdersCount: number;
     className?: string;
     onQtyChange: (productId: number, qty: number) => void;
     onNoteChange: (productId: number, note: string) => void;
     onReset: () => void;
     onSave: () => void;
     onCheckout: () => void;
-    showHeaderIcon?: boolean;
 };
 
 const paymentLabels: Record<PaymentMethod, string> = {
@@ -135,13 +138,13 @@ function CartPanel({
     cartTotal,
     errors,
     isSubmitting,
+    openOrdersCount,
     className,
     onQtyChange,
     onNoteChange,
     onReset,
     onSave,
     onCheckout,
-    showHeaderIcon = true,
 }: CartPanelProps) {
     const getInitials = useInitials();
     const [expandedNotes, setExpandedNotes] = useState<Record<number, boolean>>(
@@ -162,14 +165,25 @@ function CartPanel({
                         {cartItemLabel(cartItemsCount)}
                     </p>
                 </div>
-                <div
-                    className={cn(
-                        'flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary',
-                        !showHeaderIcon && 'hidden',
-                    )}
+                <Link
+                    href={ordersIndex({
+                        query: { date: 'today', status: 'open' },
+                    })}
+                    prefetch
+                    className="relative flex size-11 touch-manipulation items-center justify-center rounded-lg bg-primary/10 text-primary transition hover:bg-primary/15 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95"
+                    aria-label={
+                        openOrdersCount > 0
+                            ? `Lihat ${openOrdersCount} transaksi open`
+                            : 'Lihat transaksi'
+                    }
                 >
-                    <ShoppingCart className="size-5" />
-                </div>
+                    <ClipboardList className="size-5" />
+                    {openOrdersCount > 0 && (
+                        <Badge className="absolute -top-1 -right-1 min-w-5 justify-center px-1 text-[10px] leading-4 shadow-sm">
+                            {openOrdersCount > 99 ? '99+' : openOrdersCount}
+                        </Badge>
+                    )}
+                </Link>
             </div>
 
             <div
@@ -364,7 +378,11 @@ function CartPanel({
     );
 }
 
-export default function PosIndex({ categories, products }: PosIndexProps) {
+export default function PosIndex({
+    categories,
+    products,
+    openOrdersCount,
+}: PosIndexProps) {
     const getInitials = useInitials();
     const [search, setSearch] = useState('');
     const defaultCategoryId = categories[0]?.id ?? null;
@@ -605,7 +623,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                 ? 'default'
                                                 : 'outline'
                                         }
-                                        className="h-11 shrink-0 md:h-10 xl:h-9"
+                                        className="h-11 shrink-0 touch-manipulation md:h-10 xl:h-9"
                                         onClick={() =>
                                             setActiveCategory(category.id)
                                         }
@@ -632,7 +650,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                     onChange={(event) =>
                                         setSearch(event.target.value)
                                     }
-                                    placeholder="Cari produk atau kategori"
+                                    placeholder="Cari menu"
                                     className="h-11 pr-10 pl-9 md:h-10"
                                 />
                                 {search !== '' && (
@@ -650,7 +668,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
 
                         {filteredProducts.length > 0 ? (
                             <div
-                                className="grid min-h-0 flex-1 scrollbar-gutter-stable auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 min-[480px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+                                className="grid min-h-0 flex-1 scrollbar-gutter-stable auto-rows-min grid-cols-1 content-start gap-2 overflow-y-auto p-2 min-[480px]:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                                 scroll-region=""
                             >
                                 {filteredProducts.map((product) => {
@@ -661,7 +679,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                             key={product.id}
                                             type="button"
                                             onClick={() => addProduct(product)}
-                                            className="group relative grid min-h-[5.25rem] grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2 text-left shadow-xs transition hover:border-primary/50 hover:bg-muted/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:flex sm:min-h-0 sm:flex-col sm:gap-0 sm:p-0"
+                                            className="group relative grid min-h-[5.25rem] touch-manipulation grid-cols-[3.5rem_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border bg-background p-2 text-left shadow-xs transition select-none hover:border-primary/50 hover:bg-muted/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-[0.98] sm:flex sm:min-h-0 sm:flex-col sm:gap-0 sm:p-0"
                                         >
                                             <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted sm:aspect-[5/3] sm:h-auto sm:w-full sm:rounded-none">
                                                 {product.image_url ? (
@@ -689,9 +707,6 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                                                 <div className="min-w-0 flex-1">
                                                     <span className="line-clamp-2 text-sm leading-5 font-medium">
                                                         {product.name}
-                                                    </span>
-                                                    <span className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">
-                                                        {product.category.name}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center justify-between gap-2 sm:mt-auto">
@@ -723,6 +738,7 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         cartTotal={cartTotal}
                         errors={errors}
                         isSubmitting={isSubmitting}
+                        openOrdersCount={openOrdersCount}
                         className="hidden min-h-0 md:flex"
                         onQtyChange={changeQty}
                         onNoteChange={changeNote}
@@ -782,7 +798,10 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
             </div>
 
             <Dialog open={cartOpen} onOpenChange={setCartOpen}>
-                <DialogContent className="top-auto bottom-0 left-0 max-h-[85svh] w-full max-w-none translate-x-0 translate-y-0 gap-0 rounded-t-xl rounded-b-none border-x-0 border-b-0 p-0 md:hidden">
+                <DialogContent
+                    className="top-auto bottom-0 left-0 max-h-[85svh] w-full max-w-none translate-x-0 translate-y-0 gap-0 rounded-t-xl rounded-b-none border-x-0 border-b-0 p-0 md:hidden"
+                    onOpenAutoFocus={(event) => event.preventDefault()}
+                >
                     <DialogTitle className="sr-only">
                         Keranjang pesanan
                     </DialogTitle>
@@ -795,19 +814,22 @@ export default function PosIndex({ categories, products }: PosIndexProps) {
                         cartTotal={cartTotal}
                         errors={errors}
                         isSubmitting={isSubmitting}
+                        openOrdersCount={openOrdersCount}
                         className="max-h-[85svh] rounded-none border-0"
                         onQtyChange={changeQty}
                         onNoteChange={changeNote}
                         onReset={resetCart}
                         onSave={() => openCheckout('save')}
                         onCheckout={() => openCheckout('pay')}
-                        showHeaderIcon={false}
                     />
                 </DialogContent>
             </Dialog>
 
             <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-                <DialogContent className="top-auto bottom-0 left-0 max-h-[92svh] w-full max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-t-xl rounded-b-none border-x-0 border-b-0 p-0 sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-w-xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:gap-4 sm:overflow-visible sm:rounded-lg sm:border sm:p-6">
+                <DialogContent
+                    className="top-auto bottom-0 left-0 max-h-[92svh] w-full max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-t-xl rounded-b-none border-x-0 border-b-0 p-0 sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-w-xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:gap-4 sm:overflow-visible sm:rounded-lg sm:border sm:p-6"
+                    onOpenAutoFocus={(event) => event.preventDefault()}
+                >
                     <DialogHeader className="border-b px-4 py-4 pr-10 text-left sm:border-0 sm:p-0 sm:pr-0">
                         <DialogTitle>
                             {checkoutMode === 'save'

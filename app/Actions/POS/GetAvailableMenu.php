@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class GetAvailableMenu
 {
-    public const CACHE_KEY = 'pos.available-menu';
+    public const CACHE_KEY = 'pos.available-menu.v2';
 
     private const FRESH_SECONDS = 300;
 
@@ -87,11 +87,27 @@ class GetAvailableMenu
      */
     private function productsPayload(): array
     {
+        $categoriesTable = (new Category)->getTable();
+        $productsTable = (new Product)->getTable();
+
         return Product::query()
-            ->select(['id', 'category_id', 'name', 'price', 'image', 'is_available', 'sort_order'])
+            ->select([
+                "{$productsTable}.id",
+                "{$productsTable}.category_id",
+                "{$productsTable}.name",
+                "{$productsTable}.price",
+                "{$productsTable}.image",
+                "{$productsTable}.is_available",
+                "{$productsTable}.sort_order",
+            ])
+            ->join($categoriesTable, "{$categoriesTable}.id", '=', "{$productsTable}.category_id")
             ->with('category:id,name,sort_order')
             ->available()
-            ->ordered()
+            ->orderBy("{$categoriesTable}.sort_order")
+            ->orderBy("{$categoriesTable}.id")
+            ->orderBy("{$productsTable}.sort_order")
+            ->orderBy("{$productsTable}.name")
+            ->orderBy("{$productsTable}.id")
             ->get()
             ->map(fn (Product $product): array => [
                 'id' => $product->id,

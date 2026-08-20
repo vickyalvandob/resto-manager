@@ -120,6 +120,72 @@ test('product reorder invalidates cached menu ordering', function () {
         );
 });
 
+test('available menu is ordered by category and product sort order', function () {
+    Cache::flush();
+
+    $laterCategory = Category::factory()->create(['name' => 'Minuman', 'sort_order' => 20]);
+    $earlierCategory = Category::factory()->create(['name' => 'Makanan', 'sort_order' => 10]);
+
+    $laterProduct = Product::factory()
+        ->for($laterCategory)
+        ->create(['name' => 'Es Teh', 'sort_order' => 1]);
+    $secondEarlierProduct = Product::factory()
+        ->for($earlierCategory)
+        ->create(['name' => 'Nasi Goreng', 'sort_order' => 2]);
+    $firstEarlierProduct = Product::factory()
+        ->for($earlierCategory)
+        ->create(['name' => 'Ayam Bakar', 'sort_order' => 1]);
+
+    $menu = app(GetAvailableMenu::class)->handle();
+
+    expect(collect($menu['categories'])->pluck('id')->all())
+        ->toBe([$earlierCategory->id, $laterCategory->id])
+        ->and(collect($menu['products'])->pluck('id')->all())
+        ->toBe([$firstEarlierProduct->id, $secondEarlierProduct->id, $laterProduct->id]);
+});
+
+test('pos page includes the number of open orders created today', function () {
+    $cashier = User::factory()->cashier()->create();
+
+    foreach ([
+        [1, 'INV-POS-OPEN-TODAY', 'open'],
+        [2, 'INV-POS-PAID-TODAY', 'paid'],
+    ] as [$queueNumber, $invoiceNumber, $status]) {
+        Order::query()->create([
+            'queue_number' => $queueNumber,
+            'invoice_number' => $invoiceNumber,
+            'order_type' => 'dine_in',
+            'subtotal' => 15000,
+            'grand_total' => 15000,
+            'status' => $status,
+            'cashier_id' => $cashier->id,
+        ]);
+    }
+
+    $oldOpenOrder = Order::query()->create([
+        'queue_number' => 3,
+        'invoice_number' => 'INV-POS-OPEN-YESTERDAY',
+        'order_type' => 'dine_in',
+        'subtotal' => 15000,
+        'grand_total' => 15000,
+        'status' => 'open',
+        'cashier_id' => $cashier->id,
+    ]);
+    $oldOpenOrder->forceFill([
+        'created_at' => now()->subDay(),
+        'updated_at' => now()->subDay(),
+    ])->save();
+
+    $this
+        ->actingAs($cashier)
+        ->get(route('pos.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('openOrdersCount', 1)
+            ->etc()
+        );
+});
+
 test('create order uses a daily atomic lock before assigning the queue number', function () {
     $cashier = User::factory()->cashier()->create();
     $product = Product::factory()->create(['price' => 15000]);
